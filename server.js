@@ -15,7 +15,7 @@ app.use(bodyParser.json());
 app.use(cors());
 
 
-const uri = 'mongodb://localhost:27017'; // Connection URI
+/*const uri = 'mongodb://localhost:27017'; // Connection URI
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 let db;
@@ -30,7 +30,7 @@ async function connectDB() {
     }
 }
 
-connectDB();
+connectDB();*/
 
 
 app.post('/generate-test', async (req, res) => {
@@ -63,11 +63,6 @@ const svg = await satori(markup, { width: 540, height: 360, fonts: [
 
 app.post('/generate-gameday-image', async (req, res) => {
     const { clubName, teamA, teamB, gameDate } = req.body;
-
-    const teamData = await db.collection('clubs').findOne({ "Club Name": clubName});
-    if (!teamData) {
-        return res.status(404).send('Team not found');
-    }
 
     const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
     const markup = await html`
@@ -107,13 +102,80 @@ app.post('/generate-gameday-image', async (req, res) => {
 app.get('/get-club-info/:clubName', async (req, res) => {
     const clubName = req.params.clubName;
 
-    const clubData = await db.collection('clubs').findOne({ "Club Name": clubName });
-    if (!clubData) {
+    // Hardcoded club data
+    const clubData = {
+        "_id": "66c5240511d5f712caebe1b9",
+        "Club Name": "Ashburton College",
+        "Competitions": [
+            {
+                "Competition Name": "Christchurch Metro Cricket Association/CJCA",
+                "Seasons": [
+                    {
+                        "Season Name": "Term 4, 2022",
+                        "Start Date": "08 Oct 2022",
+                        "End Date": "10 Dec 2022",
+                        "Link": "https://www.playhq.com/new-zealand-cricket/org/ashburton-college/6b01467c/cmca-youth-boys-term-4-2022/e809e45d/teams",
+                        "Teams": [
+                            {
+                                "Team Name": "Ashburton College 1st XI",
+                                "Team Link": "https://www.playhq.com/new-zealand-cricket/org/ashburton-college/6b01467c/cmca-youth-boys-term-4-2022/teams/ashburton-college-1st-xi/4e25c213",
+                                "Fixtures": [
+                                    {
+                                        "Round Name": "Round 1",
+                                        "Round Date": "Saturday, 15 October 2022",
+                                        "Team A": "Shirley Boys' HS 1st XI",
+                                        "Team B": "Ashburton College 1st XI",
+                                        "Team A Score": "10/98",
+                                        "Team B Score": "10/98"
+                                    },
+                                    {
+                                        "Round Name": "Round 7",
+                                        "Round Date": "Saturday, 26 November 2022",
+                                        "Team A": "St Bede's College 3rd XI",
+                                        "Team B": "Ashburton College 1st XI",
+                                        "Team A Score": "10/38",
+                                        "Team B Score": "10/38"
+                                    }
+                                ]
+                            },
+                            {
+                                "Team Name": "Ashburton College 2nd XI",
+                                "Team Link": "https://www.playhq.com/new-zealand-cricket/org/ashburton-college/6b01467c/cmca-youth-boys-term-4-2022/teams/ashburton-college-2nd-xi/e8a05ddb",
+                                "Fixtures": [
+                                    {
+                                        "Round Name": "Round 9",
+                                        "Round Date": "Saturday, 22 October 2022",
+                                        "Team A": "Ashburton College 2nd XI",
+                                        "Team B": "Christ's College 5th XI",
+                                        "Team A Score": "10/121",
+                                        "Team B Score": "10/121"
+                                    },
+                                    {
+                                        "Round Name": "Round 14",
+                                        "Round Date": "Saturday, 03 December 2022",
+                                        "Team A": "Ashburton College 2nd XI",
+                                        "Team B": "U19 Men Lincoln High School",
+                                        "Team A Score": "10/129",
+                                        "Team B Score": "10/129"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+
+    // Check if the club name matches the hardcoded club data
+    if (clubName !== 'Ashburton College') {
         return res.status(404).send('Club not found');
     }
 
+    // Send the hardcoded JSON data as a response
     res.json(clubData);
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
