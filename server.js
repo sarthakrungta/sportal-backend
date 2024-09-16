@@ -6,6 +6,8 @@ const { readFileSync } = require('fs');
 const { resolve } = require('path');
 const { MongoClient } = require('mongodb');
 const cors = require('cors');
+const sharp = require('sharp');
+
 
 const html = (...args) =>
     import('satori-html').then(({ html }) => html(...args));
@@ -94,9 +96,11 @@ app.post('/generate-gameday-image', async (req, res) => {
         },
     )
 
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+
     // Respond with the generated SVG
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(svg);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuffer);
 });
 
 app.get('/get-club-info/:clubName', async (req, res) => {
