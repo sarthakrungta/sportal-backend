@@ -1,12 +1,12 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const fs = require('fs');
 const satori = require('satori').default;
 const { readFileSync } = require('fs');
 const { resolve } = require('path');
-const { MongoClient } = require('mongodb');
 const cors = require('cors');
 const sharp = require('sharp');
+const { Pool } = require('pg');
+
 
 
 const html = (...args) =>
@@ -16,38 +16,71 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-
-/*const uri = 'mongodb://localhost:27017'; // Connection URI
-const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-
-let db;
-
-async function connectDB() {
-    try {
-        await client.connect();
-        db = client.db('cricket_db'); // Replace with your database name
-        console.log('Connected to MongoDB');
-    } catch (error) {
-        console.error('Error connecting to MongoDB', error);
-    }
-}
-
-connectDB();*/
+// Use the connection string to connect to the remote PostgreSQL database
+const pool = new Pool({
+  connectionString: 'postgresql://sportal_database_user:6h6G3tE82CnKPjF5fXbFY4tT6ffZD3Aa@dpg-crn2e6l6l47c73a8ll0g-a.singapore-postgres.render.com/sportal_database',
+  ssl: {
+    rejectUnauthorized: false, // Required to connect to some remote servers
+  }
+});
 
 
 app.post('/generate-test', async (req, res) => {
     const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
 
+    const teamALogoUrl = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png";
+    const teamBLogoUrl = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png";
+    const sponsor1LogoUrl = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png";
+
+
 const markup = await html`
-<div style="display: flex; align-items: center; justify-content: center; position: relative; width: 300px; height: 300px; background-color: black;">
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: 'Roboto'; font-size: 24px; position: absolute;">
-        <div style="width: 100px; height: 100px; display: flex; borderRadius: 50%; background-color: green; color: green;"></div>
-        <p>LOADING SHAPES</p>
+<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 600px; height: 600px; background-color: #001844; padding: 20px; border-radius: 10px; position: relative;">
+    <div style="text-align: left; font-family: 'Roboto'; font-weight: bold; font-size: 48px; color: #FFCC00; margin-bottom: 10px;">
+        GAMEDAY
+    </div>
+    <div style="text-align: center; font-family: 'Roboto'; font-size: 24px; color: #C4C4C4; margin-bottom: 20px;">
+        CSB Men's - Division 1
+    </div>
+    
+    <div style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; padding: 0 50px;">
+        <!-- Team A Logo -->
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <img src="${teamALogoUrl}" alt="Team A Logo" style="width: 120px; height: 120px; object-fit: cover; border: 2px solid #FFD700;">
+        </div>
+        
+        <div style="display: flex; font-family: 'Roboto'; font-size: 32px; font-weight: bold; color: #FFCC00;">
+            teamA <br>vs<br> teamB
+        </div>
+        
+        <!-- Team B Logo -->
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <img src="${teamBLogoUrl}" alt="Team B Logo" style="width: 120px; height: 120px; object-fit: cover; border: 2px solid #FFD700;">
+        </div>
+    </div>
+
+    <div style="display: flex; background-color: #0A58ED; border-radius: 20px; padding: 10px 20px; font-family: 'Roboto'; font-size: 18px; color: white; margin-top: 20px;">
+        One Day
+    </div>
+    
+    <div style="display: flex; text-align: center; font-family: 'Roboto'; font-size: 24px; color: #FFCC00; margin-top: 20px;">
+        teamA vs teamB
+    </div>
+    <div style="display: flex; text-align: center; font-family: 'Roboto'; font-size: 18px; color: #C4C4C4; margin-top: 10px;">
+        Sat gameDay gameMonth <br>
+        groundName
+    </div>
+    
+    <!-- Sponsors Section -->
+    <div style="display: flex; justify-content: center; align-items: center; margin-top: 30px;">
+        <img src="${sponsor1LogoUrl}" alt="Sponsor 1" style="width: 60px; margin: 0 15px;">
+        <img src="${sponsor1LogoUrl}" alt="Sponsor 2" style="width: 60px; margin: 0 15px;">
+        <img src="${sponsor1LogoUrl}" alt="Sponsor 3" style="width: 60px; margin: 0 15px;">
     </div>
 </div>
+
 `;
 
-const svg = await satori(markup, { width: 540, height: 360, fonts: [
+const svg = await satori(markup, { width: 600, height: 600, fonts: [
     {
         name: 'Roboto',
         data: fontData,
@@ -57,23 +90,47 @@ const svg = await satori(markup, { width: 540, height: 360, fonts: [
 ], })
 
 
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+
     // Respond with the generated SVG
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(svg);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuffer);
 });
 
 
 app.post('/generate-gameday-image', async (req, res) => {
-    const { clubName, teamA, teamB, gameDate } = req.body;
+    const { seasonName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo } = req.body;
 
     const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
     const markup = await html`
-<div style="display: flex; align-items: center; justify-content: center; position: relative; width: 300px; height: 300px; background-color: black;">
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: 'Roboto'; font-size: 24px; position: absolute;">
-        <div>GAMEDAY AT</div>
-        <div>${clubName}</div>
-        <div style="margin-top:60px; color: yellow; font-size: 20px">${teamA.split(' ')[0]} v ${teamB.split(' ')[0]}</div>
-        <div style="font-size: 19px">${gameDate}</div>
+<div style="border-bottom: 15px solid #fdbd10; border-right: 15px solid #fdbd10; height: 300px; width: 300px; background-color: #091a46; padding-left: 10px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+    <!--TOP TITLE-->
+    <div style="display: flex; flex-direction: column">
+        <img src="${associationLogo}" style="width: 30px; position: absolute; top: 10px; right: 10px;" />
+    </div>
+    <div style="color: #fdbd10; display: flex; flex-direction: column">
+        <h2 style="margin-bottom: 0px;">GAMEDAY</h2>
+        <h4 style="color: grey; margin-top: 0;">${seasonName}</h4>
+    </div>
+
+    <!-- MIDDLE SECTION -->
+    <div style="display: flex; align-items: center; margin-top: 20px;">
+        <img src="${teamALogoUrl}" style="width: 50px; margin-right: 10px;" />
+        <img src="${teamBLogoUrl}" style="width: 50px; margin-right: 10px;" />
+        <div style="display: flex; background-color: #0A58ED; border-radius: 20px; padding: 1px 6px; font-family: 'Roboto'; font-size: 12px; color: white; margin-top: 30px">
+            ${gameFormat}
+        </div>
+    </div>
+
+    <div style="color: #fdbd10; display: flex; flex-direction: column">
+        <h2 style="margin-bottom: 0px;">${teamA} vs ${teamB}</h2>
+        <h4 style="color: grey; margin-top: 0; margin-bottom: 0px;">${gameDate}</h4>
+        <h4 style="color: grey; margin-top: 0;">${gameVenue}</h4>
+    </div>
+
+    <div style="display: flex;">
+        <img src="${sponsor1LogoUrl}" style="width: 30px; position: absolute; bottom: 10px; right: 10px;" />
+        <img src="${sponsor1LogoUrl}" style="width: 30px; position: absolute; bottom: 10px; right: 45px;" />
     </div>
 </div>
 `;
@@ -83,8 +140,8 @@ app.post('/generate-gameday-image', async (req, res) => {
     const svg = await satori(
         markup,
         {
-            width: 300,
-            height: 300,
+            width: 600,
+            height: 600,
             fonts: [
                 {
                     name: 'Roboto',
@@ -103,81 +160,29 @@ app.post('/generate-gameday-image', async (req, res) => {
     res.send(pngBuffer);
 });
 
-app.get('/get-club-info/:clubName', async (req, res) => {
-    const clubName = req.params.clubName;
+app.get('/get-club-info/:email', async (req, res) => {
+    const email = req.params.email;
 
-    // Hardcoded club data
-    const clubData = {
-        "_id": "66c5240511d5f712caebe1b9",
-        "Club Name": "Ashburton College",
-        "Competitions": [
-            {
-                "Competition Name": "Christchurch Metro Cricket Association/CJCA",
-                "Seasons": [
-                    {
-                        "Season Name": "Term 4, 2022",
-                        "Start Date": "08 Oct 2022",
-                        "End Date": "10 Dec 2022",
-                        "Link": "https://www.playhq.com/new-zealand-cricket/org/ashburton-college/6b01467c/cmca-youth-boys-term-4-2022/e809e45d/teams",
-                        "Teams": [
-                            {
-                                "Team Name": "Ashburton College 1st XI",
-                                "Team Link": "https://www.playhq.com/new-zealand-cricket/org/ashburton-college/6b01467c/cmca-youth-boys-term-4-2022/teams/ashburton-college-1st-xi/4e25c213",
-                                "Fixtures": [
-                                    {
-                                        "Round Name": "Round 1",
-                                        "Round Date": "Saturday, 15 October 2022",
-                                        "Team A": "Shirley Boys' HS 1st XI",
-                                        "Team B": "Ashburton College 1st XI",
-                                        "Team A Score": "10/98",
-                                        "Team B Score": "10/98"
-                                    },
-                                    {
-                                        "Round Name": "Round 7",
-                                        "Round Date": "Saturday, 26 November 2022",
-                                        "Team A": "St Bede's College 3rd XI",
-                                        "Team B": "Ashburton College 1st XI",
-                                        "Team A Score": "10/38",
-                                        "Team B Score": "10/38"
-                                    }
-                                ]
-                            },
-                            {
-                                "Team Name": "Ashburton College 2nd XI",
-                                "Team Link": "https://www.playhq.com/new-zealand-cricket/org/ashburton-college/6b01467c/cmca-youth-boys-term-4-2022/teams/ashburton-college-2nd-xi/e8a05ddb",
-                                "Fixtures": [
-                                    {
-                                        "Round Name": "Round 9",
-                                        "Round Date": "Saturday, 22 October 2022",
-                                        "Team A": "Ashburton College 2nd XI",
-                                        "Team B": "Christ's College 5th XI",
-                                        "Team A Score": "10/121",
-                                        "Team B Score": "10/121"
-                                    },
-                                    {
-                                        "Round Name": "Round 14",
-                                        "Round Date": "Saturday, 03 December 2022",
-                                        "Team A": "Ashburton College 2nd XI",
-                                        "Team B": "U19 Men Lincoln High School",
-                                        "Team A Score": "10/129",
-                                        "Team B Score": "10/129"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    };
+    try {
+        // Query the PostgreSQL database using the provided email
+        const queryText = 'SELECT * FROM clubs WHERE email = $1';
+        const { rows } = await pool.query(queryText, [email]);
 
-    // Check if the club name matches the hardcoded club data
-    if (clubName !== 'Ashburton College') {
-        return res.status(404).send('Club not found');
+        // Check if the query returned any rows
+        if (rows.length === 0) {
+            return res.status(404).send('Club not found for the given email');
+        }
+
+        console.log(rows[0])
+
+        // Send the club data as the response
+        const clubData = rows[0].clubdata;
+        res.json(clubData);
+
+    } catch (err) {
+        console.error('Error fetching club data:', err);
+        res.status(500).send('An error occurred while fetching the club data');
     }
-
-    // Send the hardcoded JSON data as a response
-    res.json(clubData);
 });
 
 
