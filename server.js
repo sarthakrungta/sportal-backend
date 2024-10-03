@@ -97,9 +97,18 @@ const svg = await satori(markup, { width: 600, height: 600, fonts: [
     res.send(pngBuffer);
 });
 
+function shortenName(name, maxLength) {
+    return name.length > maxLength ? name.slice(0, maxLength) + '...' : name;
+}
+
+
 
 app.post('/generate-gameday-image', async (req, res) => {
     const { seasonName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo } = req.body;
+
+    const maxLength = 10; // Adjust as necessary
+    const shortTeamA = shortenName(teamA, maxLength);
+    const shortTeamB = shortenName(teamB, maxLength);
 
     const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
     const markup = await html`
@@ -123,14 +132,13 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
 
     <div style="color: #fdbd10; display: flex; flex-direction: column">
-        <h2 style="margin-bottom: 0px;">${teamA} vs ${teamB}</h2>
+        <h2 style="margin-bottom: 0px;">${shortTeamA} vs ${shortTeamB}</h2>
         <h4 style="color: grey; margin-top: 0; margin-bottom: 0px;">${gameDate}</h4>
         <h4 style="color: grey; margin-top: 0;">${gameVenue}</h4>
     </div>
 
     <div style="display: flex;">
         <img src="${sponsor1LogoUrl}" style="width: 30px; position: absolute; bottom: 10px; right: 10px;" />
-        <img src="${sponsor1LogoUrl}" style="width: 30px; position: absolute; bottom: 10px; right: 45px;" />
     </div>
 </div>
 `;
