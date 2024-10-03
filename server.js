@@ -116,7 +116,7 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
     const markup = await html`
-<div style="border-bottom: 15px solid #fdbd10; border-right: 15px solid #fdbd10; height: 300px; width: 300px; background-color: #091a46; padding-left: 10px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+<div style="border-bottom: 15px solid #fdbd10; border-right: 15px solid #fdbd10; height: 600px; width: 600px; background-color: #091a46; padding-left: 10px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
         <img src="${associationLogo}" style="width: 30px; position: absolute; top: 10px; right: 10px;" />
