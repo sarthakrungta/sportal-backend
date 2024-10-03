@@ -110,6 +110,10 @@ app.post('/generate-gameday-image', async (req, res) => {
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
 
+    const gameVenueParts = gameVenue.split('/');
+    const shortGameVenue = gameVenueParts[0].trim();
+
+
     const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
     const markup = await html`
 <div style="border-bottom: 15px solid #fdbd10; border-right: 15px solid #fdbd10; height: 300px; width: 300px; background-color: #091a46; padding-left: 10px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
@@ -134,7 +138,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     <div style="color: #fdbd10; display: flex; flex-direction: column">
         <h2 style="margin-bottom: 0px;">${shortTeamA} vs ${shortTeamB}</h2>
         <h4 style="color: grey; margin-top: 0; margin-bottom: 0px;">${gameDate}</h4>
-        <h4 style="color: grey; margin-top: 0;">${gameVenue}</h4>
+        <h4 style="color: grey; margin-top: 0;">${shortGameVenue}</h4>
     </div>
 
     <div style="display: flex;">
