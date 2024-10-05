@@ -98,7 +98,7 @@ const svg = await satori(markup, { width: 600, height: 600, fonts: [
 });
 
 function shortenName(name, maxLength) {
-    return name.length > maxLength ? name.slice(0, maxLength) + '...' : name;
+    return name.length > maxLength ? name.slice(0, maxLength) : name;
 }
 
 
@@ -106,7 +106,7 @@ function shortenName(name, maxLength) {
 app.post('/generate-gameday-image', async (req, res) => {
     const { seasonName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo } = req.body;
 
-    const maxLength = 10; // Adjust as necessary
+    const maxLength = 22;
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
 
@@ -116,44 +116,40 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
     const markup = await html`
-<div style="border-bottom: 15px solid #fdbd10; border-right: 15px solid #fdbd10; height: 300px; width: 300px; background-color: #091a46; padding-left: 10px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+<div style="border-bottom: 15px solid #fdbd10; border-right: 15px solid #fdbd10; height: 500px; width: 500px; background-color: #091a46; padding-left: 25px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
-        <img src="${associationLogo}" style="width: 30px; position: absolute; top: 10px; right: 10px;" />
+        <img src="${associationLogo}" style="width: 50px; position: absolute; top: 10px; right: 10px;" />
     </div>
     <div style="color: #fdbd10; display: flex; flex-direction: column">
-        <h2 style="margin-bottom: 0px;">GAMEDAY</h2>
-        <h4 style="color: grey; margin-top: 0;">${seasonName}</h4>
+        <h1 style="margin-bottom: 0px; font-size: 50;">GAMEDAY</h1>
+        <h4 style="color: grey; margin-top: 0; font-size: 30">${seasonName}</h4>
     </div>
 
     <!-- MIDDLE SECTION -->
     <div style="display: flex; align-items: center; margin-top: 20px;">
-        <img src="${teamALogoUrl}" style="width: 50px; margin-right: 10px;" />
-        <img src="${teamBLogoUrl}" style="width: 50px; margin-right: 10px;" />
-        <div style="display: flex; background-color: #0A58ED; border-radius: 20px; padding: 1px 6px; font-family: 'Roboto'; font-size: 12px; color: white; margin-top: 30px">
+        <img src="${teamALogoUrl}" style="width: 80px;" />
+        <img src="${teamBLogoUrl}" style="width: 80px; margin-right: 10px;" />
+        <div style="display: flex; background-color: #0A58ED; border-radius: 20px; padding: 1px 6px; font-family: 'LeagueSpartan'; font-size: 12px; color: white; margin-top: 60px">
             ${gameFormat}
         </div>
     </div>
 
     <div style="color: #fdbd10; display: flex; flex-direction: column">
-        <h2 style="margin-bottom: 0px;">${shortTeamA} vs ${shortTeamB}</h2>
-        <h4 style="color: grey; margin-top: 0; margin-bottom: 0px;">${gameDate}</h4>
-        <h4 style="color: grey; margin-top: 0;">${shortGameVenue}</h4>
+        <h1 style="margin-bottom: 0px;">${shortTeamA}</h1> 
+        <h1 style="margin-bottom: 0px; margin-top: 0">${shortTeamB}</h1>
+        <h2 style="color: grey; margin-top: 10; margin-bottom: 0px;">${gameDate}</h2>
+        <h2 style="color: grey; margin-top: 0;">${shortGameVenue}</h2>
     </div>
-
-    <div style="display: flex;">
-        <img src="${sponsor1LogoUrl}" style="width: 30px; position: absolute; bottom: 10px; right: 10px;" />
-    </div>
-</div>
-`;
+</div>`;
 
 
 
     const svg = await satori(
         markup,
         {
-            width: 300,
-            height: 300,
+            width: 500,
+            height: 500,
             fonts: [
                 {
                     name: 'Roboto',
