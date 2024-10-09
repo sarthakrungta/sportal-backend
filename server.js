@@ -104,9 +104,9 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
 
     <!-- MIDDLE SECTION -->
-    <div style="display: flex; align-items: center; margin-top: 20px;">
-        <img src="${teamALogoUrl}" style="width: 80px;" />
-        <img src="${teamBLogoUrl}" style="width: 80px; margin-right: 10px;" />
+   <div style="display: flex; align-items: center; margin-top: 20px;">
+        <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
+        <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white;" />
         <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 1px 6px; font-family: 'LeagueSpartan'; font-size: 12px; color: white; margin-top: 60px">
             ${gameFormat}
         </div>
