@@ -16,6 +16,9 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
+const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
+const fontDataCooper = readFileSync(resolve(__dirname, './fonts/CooperHewitt-Book.otf'));
+
 // Use the connection string to connect to the remote PostgreSQL database
 const pool = new Pool({
   connectionString: 'postgresql://sportal_database_user:6h6G3tE82CnKPjF5fXbFY4tT6ffZD3Aa@dpg-crn2e6l6l47c73a8ll0g-a.singapore-postgres.render.com/sportal_database',
@@ -24,87 +27,57 @@ const pool = new Pool({
   }
 });
 
-
-app.post('/generate-test', async (req, res) => {
-    const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
-
-    const teamALogoUrl = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png";
-    const teamBLogoUrl = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png";
-    const sponsor1LogoUrl = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png";
-
-
-const markup = await html`
-<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 600px; height: 600px; background-color: #001844; padding: 20px; border-radius: 10px; position: relative;">
-    <div style="text-align: left; font-family: 'Roboto'; font-weight: bold; font-size: 48px; color: #FFCC00; margin-bottom: 10px;">
-        GAMEDAY
-    </div>
-    <div style="text-align: center; font-family: 'Roboto'; font-size: 24px; color: #C4C4C4; margin-bottom: 20px;">
-        CSB Men's - Division 1
-    </div>
-    
-    <div style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; padding: 0 50px;">
-        <!-- Team A Logo -->
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <img src="${teamALogoUrl}" alt="Team A Logo" style="width: 120px; height: 120px; object-fit: cover; border: 2px solid #FFD700;">
-        </div>
-        
-        <div style="display: flex; font-family: 'Roboto'; font-size: 32px; font-weight: bold; color: #FFCC00;">
-            teamA <br>vs<br> teamB
-        </div>
-        
-        <!-- Team B Logo -->
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <img src="${teamBLogoUrl}" alt="Team B Logo" style="width: 120px; height: 120px; object-fit: cover; border: 2px solid #FFD700;">
-        </div>
-    </div>
-
-    <div style="display: flex; background-color: #0A58ED; border-radius: 20px; padding: 10px 20px; font-family: 'Roboto'; font-size: 18px; color: white; margin-top: 20px;">
-        One Day
-    </div>
-    
-    <div style="display: flex; text-align: center; font-family: 'Roboto'; font-size: 24px; color: #FFCC00; margin-top: 20px;">
-        teamA vs teamB
-    </div>
-    <div style="display: flex; text-align: center; font-family: 'Roboto'; font-size: 18px; color: #C4C4C4; margin-top: 10px;">
-        Sat gameDay gameMonth <br>
-        groundName
-    </div>
-    
-    <!-- Sponsors Section -->
-    <div style="display: flex; justify-content: center; align-items: center; margin-top: 30px;">
-        <img src="${sponsor1LogoUrl}" alt="Sponsor 1" style="width: 60px; margin: 0 15px;">
-        <img src="${sponsor1LogoUrl}" alt="Sponsor 2" style="width: 60px; margin: 0 15px;">
-        <img src="${sponsor1LogoUrl}" alt="Sponsor 3" style="width: 60px; margin: 0 15px;">
-    </div>
-</div>
-
-`;
-
-const svg = await satori(markup, { width: 600, height: 600, fonts: [
-    {
-        name: 'Roboto',
-        data: fontData,
-        weight: 400,
-        style: 'normal',
-    }
-], })
-
-
-    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
-
-    // Respond with the generated SVG
-    res.setHeader('Content-Type', 'image/png');
-    res.send(pngBuffer);
-});
-
 function shortenName(name, maxLength) {
-    return name.length > maxLength ? name.slice(0, maxLength) : name;
+    if (name.length <= maxLength) {
+        return name;
+    }
+
+    let shortened = name.slice(0, maxLength);
+
+    // If the next character is a space or we are at the end of the string, return as is
+    if (name[maxLength] === ' ' || name.length === maxLength) {
+        return shortened;
+    }
+
+    // Otherwise, find the last space within the truncated part and cut off at the last word boundary
+    if (shortened.includes(' ')) {
+        return shortened.slice(0, shortened.lastIndexOf(' '));
+    }
+
+    return shortened;
 }
 
+async function fetchDesignSettings(email) {
+    initialSettings = ['','','']
+
+    try {
+        // Query the PostgreSQL database using the provided email
+        const queryText = 'SELECT primary_color, secondary_color, font FROM clubs WHERE email = $1';
+        const { rows } = await pool.query(queryText, [email]);
+
+        // Check if the query returned any rows
+        if (rows.length === 0) {
+            return res.status(404).send('Club not found for the given email');
+        }
+
+        console.log(rows[0])
+        initialSettings[0] = rows[0].primary_color
+        initialSettings[1] = rows[0].secondary_color
+        initialSettings[2] = rows[0].font
+
+    } catch (err) {
+        console.error('Error fetching club data:', err);
+        res.status(500).send('An error occurred while fetching the club data');
+    }
+
+
+
+    return initialSettings;
+} 
 
 
 app.post('/generate-gameday-image', async (req, res) => {
-    const { seasonName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo } = req.body;
+    const { seasonName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
 
     const maxLength = 22;
     const shortTeamA = shortenName(teamA, maxLength);
@@ -113,15 +86,19 @@ app.post('/generate-gameday-image', async (req, res) => {
     const gameVenueParts = gameVenue.split('/');
     const shortGameVenue = gameVenueParts[0].trim();
 
+    const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
 
-    const fontData = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
+
+
+
+
     const markup = await html`
-<div style="border-bottom: 15px solid #fdbd10; border-right: 15px solid #fdbd10; height: 500px; width: 500px; background-color: #091a46; padding-left: 25px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+<div style="border-bottom: 15px solid ${primaryColor}; font-family: ${fontFamily}; border-right: 15px solid ${primaryColor}; height: 500px; width: 500px; background-color: ${secondaryColor}; padding-left: 25px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
         <img src="${associationLogo}" style="width: 50px; position: absolute; top: 10px; right: 10px;" />
     </div>
-    <div style="color: #fdbd10; display: flex; flex-direction: column">
+    <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 50;">GAMEDAY</h1>
         <h4 style="color: grey; margin-top: 0; font-size: 30">${seasonName}</h4>
     </div>
@@ -130,12 +107,12 @@ app.post('/generate-gameday-image', async (req, res) => {
     <div style="display: flex; align-items: center; margin-top: 20px;">
         <img src="${teamALogoUrl}" style="width: 80px;" />
         <img src="${teamBLogoUrl}" style="width: 80px; margin-right: 10px;" />
-        <div style="display: flex; background-color: #0A58ED; border-radius: 20px; padding: 1px 6px; font-family: 'LeagueSpartan'; font-size: 12px; color: white; margin-top: 60px">
+        <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 1px 6px; font-family: 'LeagueSpartan'; font-size: 12px; color: white; margin-top: 60px">
             ${gameFormat}
         </div>
     </div>
 
-    <div style="color: #fdbd10; display: flex; flex-direction: column">
+    <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px;">${shortTeamA}</h1> 
         <h1 style="margin-bottom: 0px; margin-top: 0">${shortTeamB}</h1>
         <h2 style="color: grey; margin-top: 10; margin-bottom: 0px;">${gameDate}</h2>
@@ -152,8 +129,14 @@ app.post('/generate-gameday-image', async (req, res) => {
             height: 500,
             fonts: [
                 {
+                    name: 'Cooper',
+                    data: fontDataCooper,
+                    weight: 400,
+                    style: 'normal',
+                },
+                {
                     name: 'Roboto',
-                    data: fontData,
+                    data: fontDataRoboto,
                     weight: 400,
                     style: 'normal',
                 }
