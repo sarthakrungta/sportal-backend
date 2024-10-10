@@ -21,10 +21,10 @@ const fontDataCooper = readFileSync(resolve(__dirname, './fonts/CooperHewitt-Boo
 
 // Use the connection string to connect to the remote PostgreSQL database
 const pool = new Pool({
-  connectionString: 'postgresql://sportal_database_user:6h6G3tE82CnKPjF5fXbFY4tT6ffZD3Aa@dpg-crn2e6l6l47c73a8ll0g-a.singapore-postgres.render.com/sportal_database',
-  ssl: {
-    rejectUnauthorized: false, // Required to connect to some remote servers
-  }
+    connectionString: 'postgresql://sportal_database_user:6h6G3tE82CnKPjF5fXbFY4tT6ffZD3Aa@dpg-crn2e6l6l47c73a8ll0g-a.singapore-postgres.render.com/sportal_database',
+    ssl: {
+        rejectUnauthorized: false, // Required to connect to some remote servers
+    }
 });
 
 function shortenName(name, maxLength) {
@@ -48,7 +48,7 @@ function shortenName(name, maxLength) {
 }
 
 async function fetchDesignSettings(email) {
-    initialSettings = ['','','']
+    initialSettings = ['', '', '']
 
     try {
         // Query the PostgreSQL database using the provided email
@@ -56,14 +56,12 @@ async function fetchDesignSettings(email) {
         const { rows } = await pool.query(queryText, [email]);
 
         // Check if the query returned any rows
-        if (rows.length === 0) {
-            return res.status(404).send('Club not found for the given email');
+        if (rows.length > 0) {
+            console.log(rows[0])
+            initialSettings[0] = rows[0].primary_color
+            initialSettings[1] = rows[0].secondary_color
+            initialSettings[2] = rows[0].font
         }
-
-        console.log(rows[0])
-        initialSettings[0] = rows[0].primary_color
-        initialSettings[1] = rows[0].secondary_color
-        initialSettings[2] = rows[0].font
 
     } catch (err) {
         console.error('Error fetching club data:', err);
@@ -73,7 +71,7 @@ async function fetchDesignSettings(email) {
 
 
     return initialSettings;
-} 
+}
 
 
 app.post('/generate-gameday-image', async (req, res) => {
