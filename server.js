@@ -75,7 +75,7 @@ async function fetchDesignSettings(email) {
 
 
 app.post('/generate-gameday-image', async (req, res) => {
-    const { seasonName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
+    const { competitionName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
 
     const maxLength = 22;
     const shortTeamA = shortenName(teamA, maxLength);
@@ -98,7 +98,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 50;">GAMEDAY</h1>
-        <h4 style="color: grey; margin-top: 0; font-size: 30">${seasonName}</h4>
+        <h4 style="color: grey; margin-top: 0; font-size: 30">${competitionName}</h4>
     </div>
 
     <!-- MIDDLE SECTION -->
