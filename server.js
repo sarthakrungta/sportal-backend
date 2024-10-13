@@ -98,13 +98,13 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 50;">GAMEDAY</h1>
-        <h4 style="color: grey; margin-top: 0; font-size: 30">${competitionName}</h4>
+        <h4 style="color: grey; margin-top: 0; font-size: 25">${competitionName}</h4>
     </div>
 
     <!-- MIDDLE SECTION -->
    <div style="display: flex; align-items: center; margin-top: 20px;">
         <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
-        <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white;" />
+        <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
         <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 1px 6px; font-family: 'LeagueSpartan'; font-size: 12px; color: white; margin-top: 60px">
             ${gameFormat}
         </div>
