@@ -78,7 +78,7 @@ async function fetchDesignSettings(email) {
 app.post('/generate-gameday-image', async (req, res) => {
     const { competitionName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
 
-    const maxLength = 22;
+    const maxLength = 27;
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
 
