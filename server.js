@@ -53,7 +53,7 @@ async function fetchDesignSettings(email) {
 
     try {
         // Query the PostgreSQL database using the provided email
-        const queryText = 'SELECT primary_color, secondary_color, font FROM clubs WHERE email = $1';
+        const queryText = 'SELECT primary_color, secondary_color, font FROM clubs_dirty WHERE email = $1';
         const { rows } = await pool.query(queryText, [email]);
 
         // Check if the query returned any rows
@@ -155,7 +155,7 @@ app.get('/get-club-info/:email', async (req, res) => {
 
     try {
         // Query the PostgreSQL database using the provided email
-        const queryText = 'SELECT * FROM clubs WHERE email = $1';
+        const queryText = 'SELECT * FROM clubs_dirty WHERE email = $1';
         const { rows } = await pool.query(queryText, [email]);
 
         // Check if the query returned any rows
