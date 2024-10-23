@@ -150,6 +150,86 @@ app.post('/generate-gameday-image', async (req, res) => {
     res.send(pngBuffer);
 });
 
+app.post('/generate-players-image', async (req, res) => {
+    const { teamALogoUrl, teamA, teamB, teamBLogoUrl, gameDate, gameVenue, sponsor1LogoUrl, userEmail, playerList } = req.body;
+
+    const maxLength = 27;
+    const shortTeamA = shortenName(teamA, maxLength);
+    const shortTeamB = shortenName(teamB, maxLength);
+
+    const gameVenueParts = gameVenue.split('/');
+    const shortGameVenue = gameVenueParts[0].trim();
+
+    const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
+
+    // Generate player cards HTML from the player list
+    const playerCards = playerList.map(player => `
+        <div style="background-color: ${primaryColor}; border-radius: 10px 0 0 10px; padding: 10px; width: 90%; margin-bottom: 10px;">
+            <h3 style="margin: 0; color: white;">${player}</h3>
+        </div>
+    `).join('');
+
+    const markup = await html`
+<div style="border-bottom: 15px solid ${primaryColor}; font-family: ${fontFamily}; height: 500px; width: 500px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
+    <!-- LEFT SECTION -->
+    <div style="display: flex; flex-direction: column; flex: 1;">
+        <!-- TOP TITLE -->
+        <div style="background-color: ${primaryColor}; padding: 0px 35px; border-top-right-radius: 25px; border-bottom-right-radius: 25px; width: fit-content;">
+            <h2 style="margin-bottom: 0px; font-size: 40px;">STARTING</h2>
+            <h1 style="text-align: right; font-size: 50px; margin-top: 0;">X1</h1>
+        </div>
+
+        <!-- MIDDLE SECTION -->
+        <div style="display: flex; padding-left: 25px; padding-top: 10px; align-items: center; margin-top: 20px;">
+            <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
+            <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
+        </div>
+
+        <div style="color: ${primaryColor}; padding-left: 25px; display: flex; flex-direction: column;">
+            <h1 style="margin-bottom: 0px;">${shortTeamA}</h1> 
+            <h1 style="margin-bottom: 0px; margin-top: 0;">${shortTeamB}</h1>
+            <h2 style="color: grey; margin-top: 10; margin-bottom: 0px;">${gameDate}</h2>
+            <h2 style="color: grey; margin-top: 0;">${shortGameVenue}</h2>
+        </div>
+    </div>
+
+    <div style="flex: 1; padding: 15px 0 15px 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+        ${playerCards}
+    </div>
+</div>
+`;
+
+
+
+    const svg = await satori(
+        markup,
+        {
+            width: 500,
+            height: 500,
+            fonts: [
+                {
+                    name: 'Cooper',
+                    data: fontDataCooper,
+                    weight: 400,
+                    style: 'normal',
+                },
+                {
+                    name: 'Roboto',
+                    data: fontDataRoboto,
+                    weight: 400,
+                    style: 'normal',
+                }
+            ],
+        },
+    )
+
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+
+    // Respond with the generated SVG
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuffer);
+});
+
 app.get('/get-club-info/:email', async (req, res) => {
     const email = req.params.email;
 
@@ -168,7 +248,7 @@ app.get('/get-club-info/:email', async (req, res) => {
         // Send the club data as the response
         const clubDataRaw = rows[0].clubdata;
 
-        const clubData = cleanUpClubData(clubDataRaw);
+        const clubData = cleanUpClubData(clubDataRaw, false);
 
         res.json(clubData);
 
@@ -178,7 +258,36 @@ app.get('/get-club-info/:email', async (req, res) => {
     }
 });
 
-function cleanUpClubData(clubData) {
+app.get('/get-club-info-player-filter/:email', async (req, res) => {
+    const email = req.params.email;
+
+    try {
+        // Query the PostgreSQL database using the provided email
+        const queryText = 'SELECT * FROM clubs_dirty WHERE email = $1';
+        const { rows } = await pool.query(queryText, [email]);
+
+        // Check if the query returned any rows
+        if (rows.length === 0) {
+            return res.status(404).send('Club not found for the given email');
+        }
+
+        console.log(rows[0])
+
+        // Send the club data as the response
+        const clubDataRaw = rows[0].clubdata;
+
+        const clubData = cleanUpClubData(clubDataRaw, true);
+
+        res.json(clubData);
+
+    } catch (err) {
+        console.error('Error fetching club data:', err);
+        res.status(500).send('An error occurred while fetching the club data');
+    }
+});
+
+
+function cleanUpClubData(clubData,filterByPlayerList) {
     // Helper function to check if a fixture is within the next 14 days
     const isWithinNext14Days = (fixtureDateString) => {
       // Parse the date string to a moment object
@@ -195,7 +304,11 @@ function cleanUpClubData(clubData) {
       return teams.map(team => {
         team.fixtures = team.fixtures.filter(fixture => 
           fixture.fixtureName !== "Unknown Fixture" && 
-          isWithinNext14Days(fixture.fixtureDate) // Check if the fixture is within 14 days
+          isWithinNext14Days(fixture.fixtureDate) &&
+          (
+            !filterByPlayerList || // If the filterByPlayerList is false, skip this condition
+            (fixture.playerList && fixture.playerList.length >= 3) // Only apply the playerList filter if the flag is true
+          )
         );
         return team;
       }).filter(team => team.fixtures && team.fixtures.length > 0); // Only keep teams with valid fixtures
