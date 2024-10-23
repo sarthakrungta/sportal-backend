@@ -163,20 +163,22 @@ app.post('/generate-players-image', async (req, res) => {
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
 
     // Generate player cards HTML from the player list
-    const playerCards = playerList.map(player => `
-        <div style="background-color: ${primaryColor}; border-radius: 10px 0 0 10px; padding: 10px; width: 90%; margin-bottom: 10px;">
-            <h3 style="margin: 0; color: white;">${player}</h3>
-        </div>
-    `).join('');
+    const playerCardsArray = await Promise.all(playerList.map(async (player) => `
+    <div style="background-color: ${primaryColor}; border-radius: 10px 0 0 10px; padding: 10px; width: 100%; display: flex; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <h3 style="margin: 0; color: white; font-size:14px">${player}</h3>
+    </div>
+`));
 
-    const markup = await html`
-<div style="border-bottom: 15px solid ${primaryColor}; font-family: ${fontFamily}; height: 500px; width: 500px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
+// Join the resolved array into a single string
+const playerCards = playerCardsArray.join('').toString();
+
+markupString = `<div style="border-bottom: 15px solid ${primaryColor}; font-family: ${fontFamily}; height: 500px; width: 500px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
     <!-- LEFT SECTION -->
     <div style="display: flex; flex-direction: column; flex: 1;">
         <!-- TOP TITLE -->
-        <div style="background-color: ${primaryColor}; padding: 0px 35px; border-top-right-radius: 25px; border-bottom-right-radius: 25px; width: fit-content;">
+        <div style="background-color: ${primaryColor}; display: flex; padding: 0px 35px; border-top-right-radius: 25px; border-bottom-right-radius: 25px; width: 270px; height: 150px;flex-direction: column;">
             <h2 style="margin-bottom: 0px; font-size: 40px;">STARTING</h2>
-            <h1 style="text-align: right; font-size: 50px; margin-top: 0;">X1</h1>
+            <h1 style="font-size: 50px; margin-top: 0; text-align: right; margin-right: 60px;">X1</h1>
         </div>
 
         <!-- MIDDLE SECTION -->
@@ -188,16 +190,16 @@ app.post('/generate-players-image', async (req, res) => {
         <div style="color: ${primaryColor}; padding-left: 25px; display: flex; flex-direction: column;">
             <h1 style="margin-bottom: 0px;">${shortTeamA}</h1> 
             <h1 style="margin-bottom: 0px; margin-top: 0;">${shortTeamB}</h1>
-            <h2 style="color: grey; margin-top: 10; margin-bottom: 0px;">${gameDate}</h2>
-            <h2 style="color: grey; margin-top: 0;">${shortGameVenue}</h2>
         </div>
     </div>
 
-    <div style="flex: 1; padding: 15px 0 15px 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
-        ${playerCards}
-    </div>
+    <div style="flex: 1; padding-left: 80px; padding-top: 10px; padding-bottom: 10px; display: flex; flex-direction: column;">
+    ${playerCards}
 </div>
-`;
+
+</div>`
+
+    const markup = await html(markupString);
 
 
 
