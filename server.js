@@ -74,6 +74,12 @@ async function fetchDesignSettings(email) {
     return initialSettings;
 }
 
+// Read the SVG file from the assets folder
+const svgPattern = readFileSync('./assets/square_pattern.svg', 'utf-8');
+
+// Encode the SVG for embedding in the HTML as a background
+const encodedSvg = encodeURIComponent(svgPattern);
+
 
 app.post('/generate-gameday-image', async (req, res) => {
     const { competitionName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
@@ -165,20 +171,20 @@ app.post('/generate-players-image', async (req, res) => {
     // Generate player cards HTML from the player list
     const playerCardsArray = await Promise.all(playerList.map(async (player) => `
     <div style="background-color: ${primaryColor}; border-radius: 10px 0 0 10px; padding: 10px; width: 100%; display: flex; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: white; font-size:14px">${player}</h3>
+        <h3 style="margin: 0; color: ${secondaryColor}; font-size:16px">${player}</h3>
     </div>
 `));
 
 // Join the resolved array into a single string
 const playerCards = playerCardsArray.join('').toString();
 
-markupString = `<div style="border-bottom: 15px solid ${primaryColor}; font-family: ${fontFamily}; height: 500px; width: 500px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
+markupString = `<div style="border-bottom: 5px solid ${primaryColor}; background: url('data:image/svg+xml,${encodedSvg}'); font-family: ${fontFamily}; height: 600px; width: 600px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
     <!-- LEFT SECTION -->
     <div style="display: flex; flex-direction: column; flex: 1;">
         <!-- TOP TITLE -->
-        <div style="background-color: ${primaryColor}; display: flex; padding: 0px 35px; border-top-right-radius: 25px; border-bottom-right-radius: 25px; width: 270px; height: 150px;flex-direction: column;">
+        <div style="background-color: ${primaryColor}; color: ${secondaryColor}; display: flex; padding: 0px 35px; border-top-right-radius: 25px; border-bottom-right-radius: 25px; width: 270px; height: 150px;flex-direction: column;">
             <h2 style="margin-bottom: 0px; font-size: 40px;">STARTING</h2>
-            <h1 style="font-size: 50px; margin-top: 0; text-align: right; margin-right: 60px;">X1</h1>
+            <h1 style="font-size: 50px; margin-top: 0; text-align: right; margin-right: 60px;">XI</h1>
         </div>
 
         <!-- MIDDLE SECTION -->
@@ -188,12 +194,12 @@ markupString = `<div style="border-bottom: 15px solid ${primaryColor}; font-fami
         </div>
 
         <div style="color: ${primaryColor}; padding-left: 25px; display: flex; flex-direction: column;">
-            <h1 style="margin-bottom: 0px;">${shortTeamA}</h1> 
-            <h1 style="margin-bottom: 0px; margin-top: 0;">${shortTeamB}</h1>
+            <h1 style="margin-bottom: 0px; font-size: 20px;">${shortTeamA}</h1> 
+            <h1 style="margin-bottom: 0px; margin-top: 0; font-size: 20px;">${shortTeamB}</h1>
         </div>
     </div>
 
-    <div style="flex: 1; padding-left: 80px; padding-top: 10px; padding-bottom: 10px; display: flex; flex-direction: column;">
+    <div style="flex: 1; padding-left: 80px; padding-top: 10px; padding-bottom: 10px; display: flex; flex-direction: column; justify-content: center;">
     ${playerCards}
 </div>
 
@@ -206,8 +212,8 @@ markupString = `<div style="border-bottom: 15px solid ${primaryColor}; font-fami
     const svg = await satori(
         markup,
         {
-            width: 500,
-            height: 500,
+            width: 600,
+            height: 600,
             fonts: [
                 {
                     name: 'Cooper',
