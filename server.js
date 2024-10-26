@@ -7,7 +7,7 @@ const cors = require('cors');
 const sharp = require('sharp');
 const { Pool } = require('pg');
 const moment = require('moment'); // Moment.js can help parse the date strings
-
+const patternImage = require('./assets/pattern');
 
 
 const html = (...args) =>
@@ -73,13 +73,6 @@ async function fetchDesignSettings(email) {
 
     return initialSettings;
 }
-
-// Read the SVG file from the assets folder
-const svgPattern = readFileSync('./assets/square_pattern.svg', 'utf-8');
-
-// Encode the SVG for embedding in the HTML as a background
-const encodedSvg = encodeURIComponent(svgPattern);
-
 
 app.post('/generate-gameday-image', async (req, res) => {
     const { competitionName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
@@ -175,10 +168,10 @@ app.post('/generate-players-image', async (req, res) => {
     </div>
 `));
 
-// Join the resolved array into a single string
-const playerCards = playerCardsArray.join('').toString();
+    // Join the resolved array into a single string
+    const playerCards = playerCardsArray.join('').toString();
 
-markupString = `<div style="border-bottom: 5px solid ${primaryColor}; background: url('data:image/svg+xml,${encodedSvg}'); font-family: ${fontFamily}; height: 600px; width: 600px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
+    markupString = `<div style="border-bottom: 5px solid ${primaryColor}; background: url('data:image/svg+xml,${patternImage}'); font-family: ${fontFamily}; height: 600px; width: 600px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
     <!-- LEFT SECTION -->
     <div style="display: flex; flex-direction: column; flex: 1;">
         <!-- TOP TITLE -->
@@ -295,62 +288,62 @@ app.get('/get-club-info-player-filter/:email', async (req, res) => {
 });
 
 
-function cleanUpClubData(clubData,filterByPlayerList) {
+function cleanUpClubData(clubData, filterByPlayerList) {
     // Helper function to check if a fixture is within the next 14 days
     const isWithinNext14Days = (fixtureDateString) => {
-      // Parse the date string to a moment object
-      const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
-      const today = moment(); // Get today's date
-      const fourteenDaysFromNow = moment().add(14, 'days');
-      
-      // Check if the fixture date is within the next 14 days
-      return fixtureDate.isBetween(today, fourteenDaysFromNow, 'days', '[]');
+        // Parse the date string to a moment object
+        const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
+        const today = moment(); // Get today's date
+        const fourteenDaysFromNow = moment().add(14, 'days');
+
+        // Check if the fixture date is within the next 14 days
+        return fixtureDate.isBetween(today, fourteenDaysFromNow, 'days', '[]');
     };
-  
+
     // Clean up fixtures by removing those with "Unknown Fixture" names and those outside the next 14 days
     const cleanUpFixtures = (teams) => {
-      return teams.map(team => {
-        team.fixtures = team.fixtures.filter(fixture => 
-          fixture.fixtureName !== "Unknown Fixture" && 
-          isWithinNext14Days(fixture.fixtureDate) &&
-          (
-            !filterByPlayerList || // If the filterByPlayerList is false, skip this condition
-            (fixture.playerList && fixture.playerList.length >= 3) // Only apply the playerList filter if the flag is true
-          )
-        );
-        return team;
-      }).filter(team => team.fixtures && team.fixtures.length > 0); // Only keep teams with valid fixtures
+        return teams.map(team => {
+            team.fixtures = team.fixtures.filter(fixture =>
+                fixture.fixtureName !== "Unknown Fixture" &&
+                isWithinNext14Days(fixture.fixtureDate) &&
+                (
+                    !filterByPlayerList || // If the filterByPlayerList is false, skip this condition
+                    (fixture.playerList && fixture.playerList.length >= 3) // Only apply the playerList filter if the flag is true
+                )
+            );
+            return team;
+        }).filter(team => team.fixtures && team.fixtures.length > 0); // Only keep teams with valid fixtures
     };
-  
+
     // Clean up teams by removing those with empty fixtures
     const cleanUpTeams = (seasons) => {
-      return seasons.map(season => {
-        season.teams = cleanUpFixtures(season.teams);
-        return season;
-      }).filter(season => season.teams && season.teams.length > 0); // Only keep seasons with valid teams
+        return seasons.map(season => {
+            season.teams = cleanUpFixtures(season.teams);
+            return season;
+        }).filter(season => season.teams && season.teams.length > 0); // Only keep seasons with valid teams
     };
-  
+
     // Clean up seasons by removing those with empty teams
     const cleanUpSeasons = (competitions) => {
-      return competitions.map(competition => {
-        competition.seasons = cleanUpTeams(competition.seasons);
-        return competition;
-      }).filter(competition => competition.seasons && competition.seasons.length > 0); // Only keep competitions with valid seasons
+        return competitions.map(competition => {
+            competition.seasons = cleanUpTeams(competition.seasons);
+            return competition;
+        }).filter(competition => competition.seasons && competition.seasons.length > 0); // Only keep competitions with valid seasons
     };
-  
+
     // Clean up competitions by removing those with empty seasons
     const cleanUpCompetitions = (associations) => {
-      return associations.map(association => {
-        association.competitions = cleanUpSeasons(association.competitions);
-        return association;
-      }).filter(association => association.competitions && association.competitions.length > 0); // Only keep associations with valid competitions
+        return associations.map(association => {
+            association.competitions = cleanUpSeasons(association.competitions);
+            return association;
+        }).filter(association => association.competitions && association.competitions.length > 0); // Only keep associations with valid competitions
     };
-  
+
     // Clean up the associations in the club data
     clubData.association = cleanUpCompetitions(clubData.association);
-  
+
     return clubData;
-  }
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
