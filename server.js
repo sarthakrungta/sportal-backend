@@ -18,7 +18,7 @@ app.use(bodyParser.json());
 app.use(cors());
 
 const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
-const fontDataCooper = readFileSync(resolve(__dirname, './fonts/CooperHewitt-Book.otf'));
+const fontDataExtenda = readFileSync(resolve(__dirname, './fonts/Extenda-40.ttf'));
 
 // Use the connection string to connect to the remote PostgreSQL database
 const pool = new Pool({
@@ -74,6 +74,13 @@ async function fetchDesignSettings(email) {
     return initialSettings;
 }
 
+function hexToRgba(hex, opacity) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 app.post('/generate-gameday-image', async (req, res) => {
     const { competitionName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
 
@@ -102,7 +109,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
 
     <!-- MIDDLE SECTION -->
-   <div style="display: flex; align-items: center; margin-top: 20px;">
+   <div style="display: flex; margin-top: 20px;">
         <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
         <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
         <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 1px 6px; font-family: 'LeagueSpartan'; font-size: 12px; color: white; margin-top: 60px">
@@ -127,8 +134,8 @@ app.post('/generate-gameday-image', async (req, res) => {
             height: 500,
             fonts: [
                 {
-                    name: 'Cooper',
-                    data: fontDataCooper,
+                    name: 'Extenda',
+                    data: fontDataExtenda,
                     weight: 400,
                     style: 'normal',
                 },
@@ -150,54 +157,94 @@ app.post('/generate-gameday-image', async (req, res) => {
 });
 
 app.post('/generate-players-image', async (req, res) => {
-    const { teamALogoUrl, teamA, teamB, teamBLogoUrl, gameDate, gameVenue, sponsor1LogoUrl, userEmail, playerList } = req.body;
+    const { teamALogoUrl, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
 
-    const maxLength = 27;
+    const maxLength = 15;
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
-
-    const gameVenueParts = gameVenue.split('/');
-    const shortGameVenue = gameVenueParts[0].trim();
 
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
 
     // Generate player cards HTML from the player list
     const playerCardsArray = await Promise.all(playerList.map(async (player) => `
-    <div style="background-color: ${primaryColor}; border-radius: 10px 0 0 10px; padding: 10px; width: 100%; display: flex; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: ${secondaryColor}; font-size:16px">${player}</h3>
+    <div style="padding: 2px; display: flex; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <h3 style="margin: 0; color: white; font-size:25px">${player}</h3>
     </div>
 `));
 
     // Join the resolved array into a single string
     const playerCards = playerCardsArray.join('').toString();
 
-    markupString = `<div style="border-bottom: 5px solid ${primaryColor}; background: url('data:image/svg+xml,${patternImage}'); font-family: ${fontFamily}; height: 600px; width: 600px; background-color: ${secondaryColor}; overflow: hidden; position: relative; display: flex; flex-direction: row;">
-    <!-- LEFT SECTION -->
-    <div style="display: flex; flex-direction: column; flex: 1;">
-        <!-- TOP TITLE -->
-        <div style="background-color: ${primaryColor}; color: ${secondaryColor}; display: flex; padding: 0px 35px; border-top-right-radius: 25px; border-bottom-right-radius: 25px; width: 270px; height: 150px;flex-direction: column;">
-            <h2 style="margin-bottom: 0px; font-size: 40px;">STARTING</h2>
-            <h1 style="font-size: 50px; margin-top: 0; text-align: right; margin-right: 60px;">XI</h1>
-        </div>
+    const shadowColor = hexToRgba(primaryColor, 0.5);
 
-        <!-- MIDDLE SECTION -->
-        <div style="display: flex; padding-left: 25px; padding-top: 10px; align-items: center; margin-top: 20px;">
-            <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
-            <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
-        </div>
+    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 600px; width: 600px;background: url('data:image/svg+xml,${patternImage}'); background-color: ${secondaryColor}; overflow: hidden; display: flex; flex-direction: column; padding: 20px;">
+    <!-- Pseudo-element for border with rounded top corners -->
+    <div style="
+        content: '';
+        position: absolute;
+        top: 575px;
+        left: 0;
+        right: 0;
+        height: 25px;
+        background-color: ${primaryColor};
+        border-top-left-radius: 25px;
+        border-top-right-radius: 25px;
+        z-index: 1;
+        display: flex;
+    "></div>
 
-        <div style="color: ${primaryColor}; padding-left: 25px; display: flex; flex-direction: column;">
-            <h1 style="margin-bottom: 0px; font-size: 20px;">${shortTeamA}</h1> 
-            <h1 style="margin-bottom: 0px; margin-top: 0; font-size: 20px;">${shortTeamB}</h1>
+    <!-- Title and Team Card Row Container -->
+    <div style="z-index: 2; display: flex; gap: 20px;">
+        <!-- Title Section -->
+        <h1 style="font-size: 110px; margin-top: 0; color: ${primaryColor}; font-family: Extenda; text-shadow: 7px 5px ${shadowColor};">STARTING XI</h1>
+
+        <!-- Combined Card Section -->
+        <div style="display: flex; flex-direction: column; gap: 5px;">
+            <!-- Team Card Section -->
+            <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 15px; width: 225px; border-radius: 15px;">
+                <!-- Team Logos -->
+                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 10px;">
+                    <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white;" />
+                    <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white;" />
+                </div>
+
+                <!-- Team Names aligned left at the very start of the card -->
+                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 5px;">
+                    <h2 style="margin: 0; font-size: 20px;">${shortTeamA}</h2>
+                    <h2 style="margin: 0; font-size: 20px;">${shortTeamB}</h2>
+                </div>
+            </div>
+
+            <!-- Small Cards Section, positioned directly below the main card -->
+            <div style="display: flex; gap: 5px;">
+                <!-- Small Card 1 -->
+                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 110px; display: flex; align-items: center; justify-content: center;">
+                    <span style="color: ${primaryColor};">${fixtureName}</span>
+                </div>
+                <!-- Small Card 2 -->
+                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 110px; display: flex; align-items: center; justify-content: center;">
+                    <span style="color: ${primaryColor};">${gameFormat}</span>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div style="flex: 1; padding-left: 80px; padding-top: 10px; padding-bottom: 10px; display: flex; flex-direction: column; justify-content: center;">
-    ${playerCards}
+    <div style="flex: 1; padding-top: 0; margin-top: 0; display: flex; flex-direction: column; transform: translateY(-100px);">
+        ${playerCards}
+    </div>
+
+    <!-- Bottom-right tilted rectangle -->
+    <div style="
+        position: absolute;
+        bottom: 2px;
+        right: -10px;
+        width: 60px;
+        height: 280px;        background-color: ${primaryColor};
+        transform: rotate(-7deg);
+        display: flex;
+    "></div>
 </div>
-
-</div>`
-
+`
     const markup = await html(markupString);
 
 
@@ -209,8 +256,8 @@ app.post('/generate-players-image', async (req, res) => {
             height: 600,
             fonts: [
                 {
-                    name: 'Cooper',
-                    data: fontDataCooper,
+                    name: 'Extenda',
+                    data: fontDataExtenda,
                     weight: 400,
                     style: 'normal',
                 },
