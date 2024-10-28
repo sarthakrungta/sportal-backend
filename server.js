@@ -177,7 +177,7 @@ app.post('/generate-players-image', async (req, res) => {
 
     const shadowColor = hexToRgba(primaryColor, 0.5);
 
-    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 600px; width: 600px;background: url('data:image/svg+xml,${patternImage}'); background-color: ${secondaryColor}; overflow: hidden; display: flex; flex-direction: column; padding: 20px;">
+    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 600px; width: 600px;background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-color: ${secondaryColor}; overflow: hidden; display: flex; flex-direction: column; padding: 20px;">
     <!-- Pseudo-element for border with rounded top corners -->
     <div style="
         content: '';
@@ -239,7 +239,7 @@ app.post('/generate-players-image', async (req, res) => {
         bottom: 2px;
         right: -10px;
         width: 60px;
-        height: 280px;        background-color: ${primaryColor};
+        height: 250px;        background-color: ${primaryColor};
         transform: rotate(-7deg);
         display: flex;
     "></div>
