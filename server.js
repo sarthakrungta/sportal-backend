@@ -112,7 +112,7 @@ app.post('/generate-gameday-image', async (req, res) => {
    <div style="display: flex; margin-top: 20px;">
         <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
         <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
-        <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 1px 6px; font-family: 'LeagueSpartan'; font-size: 12px; color: white; margin-top: 60px">
+        <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 1px 6px; font-size: 12px; color: white; margin-top: 60px">
             ${gameFormat}
         </div>
     </div>
@@ -159,7 +159,7 @@ app.post('/generate-gameday-image', async (req, res) => {
 app.post('/generate-players-image', async (req, res) => {
     const { teamALogoUrl, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
 
-    const maxLength = 15;
+    const maxLength = 25;
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
 
@@ -194,16 +194,16 @@ app.post('/generate-players-image', async (req, res) => {
     "></div>
 
     <!-- Title and Team Card Row Container -->
-    <div style="z-index: 2; display: flex; gap: 20px;">
+    <div style="z-index: 2; display: flex; gap: 15px;">
         <!-- Title Section -->
-        <h1 style="font-size: 110px; margin-top: 0; color: ${primaryColor}; font-family: Extenda; text-shadow: 7px 5px ${shadowColor};">STARTING XI</h1>
+        <h1 style="font-size: 100px; margin-top: 0; color: ${primaryColor}; font-family: Extenda; text-shadow: 7px 5px ${shadowColor};">STARTING XI</h1>
 
         <!-- Combined Card Section -->
         <div style="display: flex; flex-direction: column; gap: 5px;">
             <!-- Team Card Section -->
-            <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 15px; width: 225px; border-radius: 15px;">
+            <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 15px; width: 260px; border-radius: 15px;">
                 <!-- Team Logos -->
-                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 10px;">
+                <div style="display: flex; gap: 20px; margin-bottom: 10px;">
                     <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white;" />
                     <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white;" />
                 </div>
@@ -216,22 +216,22 @@ app.post('/generate-players-image', async (req, res) => {
             </div>
 
             <!-- Small Cards Section, positioned directly below the main card -->
-            <div style="display: flex; gap: 5px;">
+            <div style="display: flex; gap: 10px;">
                 <!-- Small Card 1 -->
-                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 110px; display: flex; align-items: center; justify-content: center;">
+                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 125px; display: flex; align-items: center; justify-content: center;">
                     <span style="color: ${primaryColor};">${fixtureName}</span>
                 </div>
                 <!-- Small Card 2 -->
-                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 110px; display: flex; align-items: center; justify-content: center;">
+                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 125px; display: flex; align-items: center; justify-content: center;">
                     <span style="color: ${primaryColor};">${gameFormat}</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <div style="flex: 1; padding-top: 0; margin-top: 0; display: flex; flex-direction: column; transform: translateY(-100px);">
-        ${playerCards}
-    </div>
+    <div style="flex: 1; padding-top: 0; margin-top: -100px; display: flex; flex-direction: column;">
+    ${playerCards}
+</div>
 
     <!-- Bottom-right tilted rectangle -->
     <div style="
@@ -246,7 +246,6 @@ app.post('/generate-players-image', async (req, res) => {
 </div>
 `
     const markup = await html(markupString);
-
 
 
     const svg = await satori(
@@ -342,7 +341,7 @@ function cleanUpClubData(clubData, filterByPlayerList) {
         const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
         const today = moment(); // Get today's date
         const fourteenDaysFromNow = moment().add(14, 'days');
-        const fourteendaysbefore = moment().subtract(14,'days');
+        const fourteendaysbefore = moment().subtract(14, 'days');
 
         // Check if the fixture date is within the next 14 days
         return fixtureDate.isBetween(fourteendaysbefore, fourteenDaysFromNow, 'days', '[]');
