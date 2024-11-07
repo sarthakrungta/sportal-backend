@@ -165,6 +165,8 @@ app.post('/generate-players-image', async (req, res) => {
 
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
 
+    playerList = playerList.filter(player => player.toLowerCase() !== "fill-in");
+
     // Generate player cards HTML from the player list
     const playerCardsArray = await Promise.all(playerList.map(async (player) => `
     <div style="padding: 2px; display: flex; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -344,7 +346,7 @@ function cleanUpClubData(clubData, filterByPlayerList) {
         const fourteendaysbefore = moment().subtract(14, 'days');
 
         // Check if the fixture date is within the next 14 days
-        return fixtureDate.isBetween(fourteendaysbefore, fourteenDaysFromNow, 'days', '[]');
+        return fixtureDate.isBetween(today, fourteenDaysFromNow, 'days', '[]');
     };
 
     // Clean up fixtures by removing those with "Unknown Fixture" names and those outside the next 14 days
