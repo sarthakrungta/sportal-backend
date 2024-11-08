@@ -165,10 +165,10 @@ app.post('/generate-players-image', async (req, res) => {
 
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
 
-    playerList = playerList.filter(player => player.toLowerCase() !== "fill-in");
+    const playerListFiltered = playerList.filter(player => player.toLowerCase() !== "fill-in");
 
     // Generate player cards HTML from the player list
-    const playerCardsArray = await Promise.all(playerList.map(async (player) => `
+    const playerCardsArray = await Promise.all(playerListFiltered.map(async (player) => `
     <div style="padding: 2px; display: flex; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
         <h3 style="margin: 0; color: white; font-size:25px">${player}</h3>
     </div>
