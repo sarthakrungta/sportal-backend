@@ -102,35 +102,35 @@ app.post('/generate-gameday-image', async (req, res) => {
 
 
     markupString = `
-<div style="border-bottom: 15px solid ${primaryColor}; font-family: ${fontFamily}; border-right: 15px solid ${primaryColor}; height: 500px; width: 500px; background-color: ${secondaryColor}; padding-left: 25px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+<div style="border-bottom: 30px solid ${primaryColor}; font-family: ${fontFamily}; border-right: 30px solid ${primaryColor}; height: 1000px; width: 1000px; background-color: ${secondaryColor}; padding-left: 50px; padding-top: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
-        <img src="${associationLogo}" style="width: 50px; position: absolute; top: 10px; right: 10px;" />
+        <img src="${associationLogo}" style="width: 100px; position: absolute; top: 20px; right: 20px;" />
     </div>
     ${sponsorLogo != ''
         ? `<div style="display: flex; flex-direction: column">
-                <img src="${sponsorLogo}" style="width: 80px; position: absolute; top: 400px; right: 10px;" />
+                <img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 800px; right: 20px;" />
               </div>`
         : ''}
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
-        <h1 style="margin-bottom: 0px; font-size: 50;">GAMEDAY</h1>
-        <h4 style="color: grey; margin-top: 0; font-size: 25">${competitionName}</h4>
+        <h1 style="margin-bottom: 0px; font-size: 100;">GAMEDAY</h1>
+        <h4 style="color: grey; margin-top: 0; font-size: 50">${competitionName}</h4>
     </div>
 
     <!-- MIDDLE SECTION -->
-   <div style="display: flex; margin-top: 20px;">
-        <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
-        <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white; margin-right: 5px" />
-        <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 1px 6px; font-size: 12px; color: white; margin-top: 60px">
+   <div style="display: flex; margin-top: 40px;">
+        <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
+        <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
+        <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
             ${gameFormat}
         </div>
     </div>
 
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
-        <h1 style="margin-bottom: 0px;">${shortTeamA}</h1> 
-        <h1 style="margin-bottom: 0px; margin-top: 0">${shortTeamB}</h1>
-        <h2 style="color: grey; margin-top: 10; margin-bottom: 0px;">${gameDate}</h2>
-        <h2 style="color: grey; margin-top: 0;">${shortGameVenue}</h2>
+        <h1 style="margin-bottom: 0px; font-size: 60;">${shortTeamA}</h1> 
+        <h1 style="margin-bottom: 0px; margin-top: 0; font-size: 60;">${shortTeamB}</h1>
+        <h2 style="color: grey; margin-top: 20; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
+        <h2 style="color: grey; margin-top: 0; font-size: 40;">${shortGameVenue}</h2>
     </div>
 </div>`;
 
@@ -140,8 +140,8 @@ app.post('/generate-gameday-image', async (req, res) => {
     const svg = await satori(
         markup,
         {
-            width: 500,
-            height: 500,
+            width: 1000,
+            height: 1000,
             fonts: [
                 {
                     name: 'Extenda',
@@ -177,10 +177,15 @@ app.post('/generate-players-image', async (req, res) => {
 
     const playerListFiltered = playerList.filter(player => player.toLowerCase() !== "fill-in");
 
+    var sponsorLogo = '';
+    if(userEmail == 'test@ashburton.com'){
+        sponsorLogo = ashburton_sponsor;
+    }
+
     // Generate player cards HTML from the player list
     const playerCardsArray = await Promise.all(playerListFiltered.map(async (player) => `
-    <div style="padding: 2px; display: flex; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: white; font-size:25px">${player}</h3>
+    <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <h3 style="margin: 0; color: white; font-size:50px">${player}</h3>
     </div>
 `));
 
@@ -189,69 +194,76 @@ app.post('/generate-players-image', async (req, res) => {
 
     const shadowColor = hexToRgba(primaryColor, 0.5);
 
-    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 600px; width: 600px;background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-color: ${secondaryColor}; overflow: hidden; display: flex; flex-direction: column; padding: 20px;">
+    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; flex-direction: column; padding: 40px;">
     <!-- Pseudo-element for border with rounded top corners -->
     <div style="
         content: '';
         position: absolute;
-        top: 575px;
+        top: 1150px;
         left: 0;
         right: 0;
-        height: 25px;
+        height: 50px;
         background-color: ${primaryColor};
-        border-top-left-radius: 25px;
-        border-top-right-radius: 25px;
+        border-top-left-radius: 50px;
+        border-top-right-radius: 50px;
         z-index: 1;
         display: flex;
     "></div>
 
+    ${sponsorLogo != ''
+        ? `<div style="display: flex; flex-direction: column">
+                <img src="${sponsorLogo}" style="width: 320px; position: absolute; top: 900px; right: 75px;" />
+              </div>`
+        : ''}
+
     <!-- Title and Team Card Row Container -->
-    <div style="z-index: 2; display: flex; gap: 15px;">
+    <div style="z-index: 2; display: flex; gap: 30px;">
         <!-- Title Section -->
-        <h1 style="font-size: 100px; margin-top: 0; color: ${primaryColor}; font-family: Extenda; text-shadow: 7px 5px ${shadowColor};">STARTING XI</h1>
+        <h1 style="font-size: 200px; margin-top: 0; color: ${primaryColor}; font-family: Extenda; text-shadow: 14px 10px ${shadowColor};">STARTING XI</h1>
 
         <!-- Combined Card Section -->
-        <div style="display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
             <!-- Team Card Section -->
-            <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 15px; width: 260px; border-radius: 15px;">
+            <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 30px; width: 520px; border-radius: 30px;">
                 <!-- Team Logos -->
-                <div style="display: flex; gap: 20px; margin-bottom: 10px;">
-                    <img src="${teamALogoUrl}" style="width: 80px; border: 2px solid white;" />
-                    <img src="${teamBLogoUrl}" style="width: 80px; border: 2px solid white;" />
+                <div style="display: flex; gap: 40px; margin-bottom: 20px;">
+                    <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white;" />
+                    <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white;" />
                 </div>
 
                 <!-- Team Names aligned left at the very start of the card -->
-                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 5px;">
-                    <h2 style="margin: 0; font-size: 20px;">${shortTeamA}</h2>
-                    <h2 style="margin: 0; font-size: 20px;">${shortTeamB}</h2>
+                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
+                    <h2 style="margin: 0; font-size: 40px;">${shortTeamA}</h2>
+                    <h2 style="margin: 0; font-size: 40px;">${shortTeamB}</h2>
                 </div>
             </div>
 
             <!-- Small Cards Section, positioned directly below the main card -->
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 20px;">
                 <!-- Small Card 1 -->
-                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 125px; display: flex; align-items: center; justify-content: center;">
-                    <span style="color: ${primaryColor};">${fixtureName}</span>
+                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
+                    <span style="color: ${primaryColor}; font-size: 24px;">${fixtureName}</span>
                 </div>
                 <!-- Small Card 2 -->
-                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px; width: 125px; display: flex; align-items: center; justify-content: center;">
-                    <span style="color: ${primaryColor};">${gameFormat}</span>
+                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
+                    <span style="color: ${primaryColor}; font-size: 24px;">${gameFormat}</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <div style="flex: 1; padding-top: 0; margin-top: -100px; display: flex; flex-direction: column;">
-    ${playerCards}
-</div>
+    <div style="flex: 1; padding-top: 0; margin-top: -200px; display: flex; flex-direction: column;">
+        ${playerCards}
+    </div>
 
     <!-- Bottom-right tilted rectangle -->
     <div style="
         position: absolute;
-        bottom: 2px;
-        right: -10px;
-        width: 60px;
-        height: 250px;        background-color: ${primaryColor};
+        bottom: 4px;
+        right: -20px;
+        width: 120px;
+        height: 500px;
+        background-color: ${primaryColor};
         transform: rotate(-7deg);
         display: flex;
     "></div>
@@ -263,8 +275,8 @@ app.post('/generate-players-image', async (req, res) => {
     const svg = await satori(
         markup,
         {
-            width: 600,
-            height: 600,
+            width: 1200,
+            height: 1200,
             fonts: [
                 {
                     name: 'Extenda',
