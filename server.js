@@ -20,6 +20,8 @@ app.use(cors());
 const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
 const fontDataExtenda = readFileSync(resolve(__dirname, './fonts/Extenda-40.ttf'));
 
+const ashburton_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/ashburton_sponsor.jpg';
+
 // Use the connection string to connect to the remote PostgreSQL database
 const pool = new Pool({
     connectionString: 'postgresql://sportal_database_user:6h6G3tE82CnKPjF5fXbFY4tT6ffZD3Aa@dpg-crn2e6l6l47c73a8ll0g-a.singapore-postgres.render.com/sportal_database',
@@ -91,18 +93,25 @@ app.post('/generate-gameday-image', async (req, res) => {
     const gameVenueParts = gameVenue.split('/');
     const shortGameVenue = gameVenueParts[0].trim();
 
-    const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
+    const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail);
+
+    var sponsorLogo = '';
+    if(userEmail == 'test@ashburton.com'){
+        sponsorLogo = ashburton_sponsor;
+    }
 
 
-
-
-
-    const markup = await html`
+    markupString = `
 <div style="border-bottom: 15px solid ${primaryColor}; font-family: ${fontFamily}; border-right: 15px solid ${primaryColor}; height: 500px; width: 500px; background-color: ${secondaryColor}; padding-left: 25px; padding-top: 10px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
         <img src="${associationLogo}" style="width: 50px; position: absolute; top: 10px; right: 10px;" />
     </div>
+    ${sponsorLogo != ''
+        ? `<div style="display: flex; flex-direction: column">
+                <img src="${sponsorLogo}" style="width: 80px; position: absolute; top: 400px; right: 10px;" />
+              </div>`
+        : ''}
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 50;">GAMEDAY</h1>
         <h4 style="color: grey; margin-top: 0; font-size: 25">${competitionName}</h4>
@@ -125,6 +134,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
 </div>`;
 
+    const markup = await html(markupString);
 
 
     const svg = await satori(
