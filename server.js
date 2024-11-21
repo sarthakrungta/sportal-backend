@@ -21,6 +21,7 @@ const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf
 const fontDataExtenda = readFileSync(resolve(__dirname, './fonts/Extenda-40.ttf'));
 
 const ashburton_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/ashburton_sponsor.jpg';
+const monash_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/monash_sponsor.png';
 
 // Use the connection string to connect to the remote PostgreSQL database
 const pool = new Pool({
@@ -98,6 +99,8 @@ app.post('/generate-gameday-image', async (req, res) => {
     var sponsorLogo = '';
     if(userEmail == 'test@ashburton.com'){
         sponsorLogo = ashburton_sponsor;
+    } else if (userEmail == 'test@monashcc.com'){
+        sponsorLogo = monash_sponsor;
     }
 
 
@@ -180,6 +183,8 @@ app.post('/generate-players-image', async (req, res) => {
     var sponsorLogo = '';
     if(userEmail == 'test@ashburton.com'){
         sponsorLogo = ashburton_sponsor;
+    } else if (userEmail == 'test@monashcc.com'){
+        sponsorLogo = monash_sponsor;
     }
 
     // Generate player cards HTML from the player list
