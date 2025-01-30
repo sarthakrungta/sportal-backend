@@ -97,7 +97,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail);
 
     var sponsorLogo = '';
-    if(userEmail == 'test@ashburton.com'){
+    if(userEmail == 'test@ashburton.com' || 'timmurphy1181@gmail.com'){
         sponsorLogo = ashburton_sponsor;
     } else if (userEmail == 'test@monashcc.com'){
         sponsorLogo = monash_sponsor;
