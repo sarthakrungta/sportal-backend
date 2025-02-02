@@ -61,7 +61,6 @@ async function fetchDesignSettings(email) {
 
         // Check if the query returned any rows
         if (rows.length > 0) {
-            console.log(rows[0])
             initialSettings[0] = rows[0].primary_color
             initialSettings[1] = rows[0].secondary_color
             initialSettings[2] = rows[0].font
@@ -96,13 +95,12 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail);
 
-    var sponsorLogo = '';
-    if(userEmail == 'test@ashburton.com' || 'timmurphy1181@gmail.com'){
+    let sponsorLogo = '';
+    if (userEmail === 'test@ashburton.com' || userEmail === 'timmurphy1181@gmail.com') {
         sponsorLogo = ashburton_sponsor;
-    } else if (userEmail == 'test@monashcc.com'){
+    } else if (userEmail === 'test@monashcc.com') {
         sponsorLogo = monash_sponsor;
     }
-
 
     markupString = `
 <div style="border-bottom: 30px solid ${primaryColor}; font-family: ${fontFamily}; border-right: 30px solid ${primaryColor}; height: 1000px; width: 1000px; background-color: ${secondaryColor}; padding-left: 50px; padding-top: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column">
@@ -110,11 +108,11 @@ app.post('/generate-gameday-image', async (req, res) => {
     <div style="display: flex; flex-direction: column">
         <img src="${associationLogo}" style="width: 100px; position: absolute; top: 20px; right: 20px;" />
     </div>
-    ${sponsorLogo != ''
-        ? `<div style="display: flex; flex-direction: column">
+    ${sponsorLogo !== ''
+            ? `<div style="display: flex; flex-direction: column">
                 <img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 800px; right: 20px;" />
               </div>`
-        : ''}
+            : ''}
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 100;">GAMEDAY</h1>
         <h4 style="color: grey; margin-top: 0; font-size: 50">${competitionName}</h4>
@@ -137,36 +135,49 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
 </div>`;
 
-    const markup = await html(markupString);
+    try {
+        const markup = await html(markupString);
 
+        const svg = await satori(
+            markup,
+            {
+                width: 1000,
+                height: 1000,
+                fonts: [
+                    {
+                        name: 'Extenda',
+                        data: fontDataExtenda,
+                        weight: 400,
+                        style: 'normal',
+                    },
+                    {
+                        name: 'Roboto',
+                        data: fontDataRoboto,
+                        weight: 400,
+                        style: 'normal',
+                    }
+                ],
+            },
+        );
 
-    const svg = await satori(
-        markup,
-        {
-            width: 1000,
-            height: 1000,
-            fonts: [
-                {
-                    name: 'Extenda',
-                    data: fontDataExtenda,
-                    weight: 400,
-                    style: 'normal',
-                },
-                {
-                    name: 'Roboto',
-                    data: fontDataRoboto,
-                    weight: 400,
-                    style: 'normal',
-                }
-            ],
-        },
-    )
+        const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
 
-    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+        // Insert log entry into the database AFTER successful image generation
+        const insertQuery = `
+            INSERT INTO image_generation_logs (user_email, selected_template)
+            VALUES ($1, $2)
+        `;
 
-    // Respond with the generated SVG
-    res.setHeader('Content-Type', 'image/png');
-    res.send(pngBuffer);
+        await pool.query(insertQuery, [userEmail, "Gameday template"]); // Assuming competitionName is the template
+
+        // Respond with the generated image
+        res.setHeader('Content-Type', 'image/png');
+        res.send(pngBuffer);
+
+    } catch (err) {
+        console.error('Error generating image or inserting log:', err);
+        res.status(500).json({ error: 'Failed to generate image or log the event' });
+    }
 });
 
 app.post('/generate-players-image', async (req, res) => {
@@ -181,9 +192,9 @@ app.post('/generate-players-image', async (req, res) => {
     const playerListFiltered = playerList.filter(player => player.toLowerCase() !== "fill-in");
 
     var sponsorLogo = '';
-    if(userEmail == 'test@ashburton.com'){
+    if (userEmail == 'test@ashburton.com') {
         sponsorLogo = ashburton_sponsor;
-    } else if (userEmail == 'test@monashcc.com'){
+    } else if (userEmail == 'test@monashcc.com') {
         sponsorLogo = monash_sponsor;
     }
 
@@ -216,10 +227,10 @@ app.post('/generate-players-image', async (req, res) => {
     "></div>
 
     ${sponsorLogo != ''
-        ? `<div style="display: flex; flex-direction: column">
+            ? `<div style="display: flex; flex-direction: column">
                 <img src="${sponsorLogo}" style="width: 320px; position: absolute; top: 900px; right: 75px;" />
               </div>`
-        : ''}
+            : ''}
 
     <!-- Title and Team Card Row Container -->
     <div style="z-index: 2; display: flex; gap: 30px;">
@@ -299,6 +310,15 @@ app.post('/generate-players-image', async (req, res) => {
         },
     )
 
+    // Insert log entry into the database AFTER successful image generation
+    const insertQuery = `
+            INSERT INTO image_generation_logs (user_email, selected_template)
+            VALUES ($1, $2)
+        `;
+
+    await pool.query(insertQuery, [userEmail, "Starting XI template"]); // Assuming competitionName is the template
+
+
     const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
 
     // Respond with the generated SVG
@@ -318,8 +338,6 @@ app.get('/get-club-info/:email', async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).send('Club not found for the given email');
         }
-
-        console.log(rows[0])
 
         // Send the club data as the response
         const clubDataRaw = rows[0].clubdata;
@@ -346,8 +364,6 @@ app.get('/get-club-info-player-filter/:email', async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).send('Club not found for the given email');
         }
-
-        console.log(rows[0])
 
         // Send the club data as the response
         const clubDataRaw = rows[0].clubdata;
