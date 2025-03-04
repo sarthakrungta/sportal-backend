@@ -382,6 +382,7 @@ app.get('/get-club-info-player-filter/:email', async (req, res) => {
 function cleanUpClubData(clubData, filterByPlayerList) {
     // Helper function to check if a fixture is within the next 14 days
     const isWithinNext14Days = (fixtureDateString) => {
+        return true
         // Parse the date string to a moment object
         const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
         const today = moment(); // Get today's date
@@ -389,7 +390,7 @@ function cleanUpClubData(clubData, filterByPlayerList) {
         const fourteendaysbefore = moment().subtract(14, 'days');
 
         // Check if the fixture date is within the next 14 days
-        return fixtureDate.isBetween(today, fourteenDaysFromNow, 'days', '[]');
+        return fixtureDate.isBetween(fourteendaysbefore, fourteenDaysFromNow, 'days', '[]');
     };
 
     // Clean up fixtures by removing those with "Unknown Fixture" names and those outside the next 14 days
