@@ -31,6 +31,21 @@ const pool = new Pool({
     }
 });
 
+function formatPlayerName(name) {
+    // Split the name into words
+    return name
+      .split(' ') // Split the string by spaces
+      .map(word => {
+        if (word) {
+          // Capitalize the first letter and lowercase the rest
+          return word[0].toUpperCase() + word.slice(1).toLowerCase();
+        }
+        return word; // For empty strings, return as is
+      })
+      .join(' '); // Join the words back into a single string
+  }
+  
+
 function shortenName(name, maxLength) {
     if (name.length <= maxLength) {
         return name;
@@ -110,7 +125,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
     ${sponsorLogo !== ''
             ? `<div style="display: flex; flex-direction: column">
-                <img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 800px; right: 20px;" />
+                <img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 800px; right: 75px;" />
               </div>`
             : ''}
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
@@ -183,7 +198,7 @@ app.post('/generate-gameday-image', async (req, res) => {
 app.post('/generate-players-image', async (req, res) => {
     const { teamALogoUrl, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
 
-    const maxLength = 25;
+    const maxLength = 23;
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
 
@@ -201,7 +216,7 @@ app.post('/generate-players-image', async (req, res) => {
     // Generate player cards HTML from the player list
     const playerCardsArray = await Promise.all(playerListFiltered.map(async (player) => `
     <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: white; font-size:50px">${player}</h3>
+        <h3 style="margin: 0; color: white; font-size:50px">${formatPlayerName(player)}</h3>
     </div>
 `));
 
@@ -210,79 +225,86 @@ app.post('/generate-players-image', async (req, res) => {
 
     const shadowColor = hexToRgba(primaryColor, 0.5);
 
-    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; flex-direction: column; padding: 40px;">
-    <!-- Pseudo-element for border with rounded top corners -->
-    <div style="
-        content: '';
-        position: absolute;
-        top: 1150px;
-        left: 0;
-        right: 0;
-        height: 50px;
-        background-color: ${primaryColor};
-        border-top-left-radius: 50px;
-        border-top-right-radius: 50px;
-        z-index: 1;
-        display: flex;
-    "></div>
+    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; padding: 40px 20px 40px 40px;">
+  <!-- Pseudo-element for border with rounded top corners -->
+  <div style="
+      content: '';
+      position: absolute;
+      top: 1150px;
+      left: 0;
+      right: 0;
+      height: 50px;
+      background-color: ${primaryColor};
+      border-top-left-radius: 50px;
+      border-top-right-radius: 50px;
+      z-index: 1;
+      display: flex;
+  "></div>
 
-    ${sponsorLogo != ''
-            ? `<div style="display: flex; flex-direction: column">
-                <img src="${sponsorLogo}" style="width: 320px; position: absolute; top: 900px; right: 75px;" />
-              </div>`
-            : ''}
+  ${sponsorLogo != ''
+      ? `<img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 1000px; right: 100px;" />`
+      : ''}
 
-    <!-- Title and Team Card Row Container -->
-    <div style="z-index: 2; display: flex; gap: 30px;">
-        <!-- Title Section -->
-        <h1 style="font-size: 200px; margin-top: 0; color: ${primaryColor}; font-family: Extenda; text-shadow: 14px 10px ${shadowColor};">STARTING XI</h1>
+  <!-- Main Container Split into Left and Right -->
+  <div style="display: flex; width: 100%; height: 100%;">
 
-        <!-- Combined Card Section -->
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-            <!-- Team Card Section -->
-            <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 30px; width: 520px; border-radius: 30px;">
-                <!-- Team Logos -->
-                <div style="display: flex; gap: 40px; margin-bottom: 20px;">
-                    <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white;" />
-                    <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white;" />
-                </div>
+    <!-- Left Section (Title and Player List) -->
+    <div style="width: 620px; display: flex; flex-direction: column; gap: 20px; padding-right: 20px;">
 
-                <!-- Team Names aligned left at the very start of the card -->
-                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
-                    <h2 style="margin: 0; font-size: 40px;">${shortTeamA}</h2>
-                    <h2 style="margin: 0; font-size: 40px;">${shortTeamB}</h2>
-                </div>
-            </div>
+      <!-- Title Section (Top of Left) -->
+      <h1 style="font-size: 200px; color: ${primaryColor}; font-family: Extenda; text-shadow: 14px 10px ${shadowColor}; margin-top: 0;">STARTING XI</h1>
 
-            <!-- Small Cards Section, positioned directly below the main card -->
-            <div style="display: flex; gap: 20px;">
-                <!-- Small Card 1 -->
-                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
-                    <span style="color: ${primaryColor}; font-size: 24px;">${fixtureName}</span>
-                </div>
-                <!-- Small Card 2 -->
-                <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
-                    <span style="color: ${primaryColor}; font-size: 24px;">${gameFormat}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div style="flex: 1; padding-top: 0; margin-top: -200px; display: flex; flex-direction: column;">
+      <!-- Player List Section (Bottom of Left) -->
+      <div style="flex: 1; padding-top: 0; margin-top: -40px; display: flex; flex-direction: column;">
         ${playerCards}
     </div>
 
-    <!-- Bottom-right tilted rectangle -->
-    <div style="
-        position: absolute;
-        bottom: 4px;
-        right: -20px;
-        width: 120px;
-        height: 500px;
-        background-color: ${primaryColor};
-        transform: rotate(-7deg);
-        display: flex;
-    "></div>
+
+    </div>
+
+    <!-- Right Section (Combined Card) -->
+    <div style="width: 580px; display: flex; flex-direction: column; gap: 20px;">
+
+      <!-- Combined Card Section -->
+      <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 30px; width: 520px; border-radius: 30px;">
+        <!-- Team Logos -->
+        <div style="display: flex; gap: 40px; margin-bottom: 20px;">
+          <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white;" />
+          <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white;" />
+        </div>
+
+        <!-- Team Names aligned left at the very start of the card -->
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
+          <h2 style="margin: 0; font-size: 40px;">${shortTeamA}</h2>
+          <h2 style="margin: 0; font-size: 40px;">${shortTeamB}</h2>
+        </div>
+      </div>
+
+      <!-- Small Cards Section, positioned directly below the main card -->
+      <div style="display: flex; gap: 20px;">
+        <!-- Small Card 1 -->
+        <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
+          <span style="color: ${primaryColor}; font-size: 24px;">${fixtureName}</span>
+        </div>
+        <!-- Small Card 2 -->
+        <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
+          <span style="color: ${primaryColor}; font-size: 24px;">${gameFormat}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom-right tilted rectangle -->
+  <div style="
+      position: absolute;
+      bottom: 4px;
+      right: -20px;
+      width: 100px;
+      height: 500px;
+      background-color: ${primaryColor};
+      transform: rotate(-7deg);
+      display: flex;
+  "></div>
 </div>
 `
     const markup = await html(markupString);
