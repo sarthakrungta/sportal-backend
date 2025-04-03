@@ -110,11 +110,13 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail);
 
-    let sponsorLogo = '';
-    if (userEmail === 'test@ashburton.com' || userEmail === 'timmurphy1181@gmail.com') {
-        sponsorLogo = ashburton_sponsor;
-    } else if (userEmail === 'test@monashcc.com') {
-        sponsorLogo = monash_sponsor;
+    switch(userEmail){
+        case 'test@ashburton.com':
+        case 'test@monashblues.com':
+            sponsorLogo = ashburton_sponsor;
+            break;
+        case 'test@monashcc.com':
+            sponsorLogo = monash_sponsor;
     }
 
     markupString = `
@@ -207,10 +209,13 @@ app.post('/generate-players-image', async (req, res) => {
     const playerListFiltered = playerList.filter(player => player.toLowerCase() !== "fill-in");
 
     var sponsorLogo = '';
-    if (userEmail == 'test@ashburton.com') {
-        sponsorLogo = ashburton_sponsor;
-    } else if (userEmail == 'test@monashcc.com') {
-        sponsorLogo = monash_sponsor;
+    switch(userEmail){
+        case 'test@ashburton.com':
+        case 'test@monashblues.com':
+            sponsorLogo = ashburton_sponsor;
+            break;
+        case 'test@monashcc.com':
+            sponsorLogo = monash_sponsor;
     }
 
     // Generate player cards HTML from the player list
