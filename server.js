@@ -9,7 +9,6 @@ const { Pool } = require('pg');
 const moment = require('moment'); // Moment.js can help parse the date strings
 const patternImage = require('./assets/pattern');
 
-
 const html = (...args) =>
     import('satori-html').then(({ html }) => html(...args));
 
@@ -43,28 +42,17 @@ function formatPlayerName(name) {
         return word; // For empty strings, return as is
       })
       .join(' '); // Join the words back into a single string
-  }
-  
-
-function shortenName(name, maxLength) {
-    if (name.length <= maxLength) {
-        return name;
-    }
-
-    let shortened = name.slice(0, maxLength);
-
-    // If the next character is a space or we are at the end of the string, return as is
-    if (name[maxLength] === ' ' || name.length === maxLength) {
-        return shortened;
-    }
-
-    // Otherwise, find the last space within the truncated part and cut off at the last word boundary
-    if (shortened.includes(' ')) {
-        return shortened.slice(0, shortened.lastIndexOf(' '));
-    }
-
-    return shortened;
 }
+
+function isAflClub(userEmail){
+    switch (userEmail){
+        case 'test@monashblues.com':
+            return true
+        default:
+            return false
+    }
+}
+
 
 async function fetchDesignSettings(email) {
     initialSettings = ['', '', '']
@@ -90,6 +78,27 @@ async function fetchDesignSettings(email) {
 
     return initialSettings;
 }
+  
+
+function shortenName(name, maxLength) {
+    if (name.length <= maxLength) {
+        return name;
+    }
+
+    let shortened = name.slice(0, maxLength);
+
+    // If the next character is a space or we are at the end of the string, return as is
+    if (name[maxLength] === ' ' || name.length === maxLength) {
+        return shortened;
+    }
+
+    // Otherwise, find the last space within the truncated part and cut off at the last word boundary
+    if (shortened.includes(' ')) {
+        return shortened.slice(0, shortened.lastIndexOf(' '));
+    }
+
+    return shortened;
+}
 
 function hexToRgba(hex, opacity) {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -109,6 +118,8 @@ app.post('/generate-gameday-image', async (req, res) => {
     const shortGameVenue = gameVenueParts[0].trim();
 
     const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail);
+
+    const isAfl = isAflClub(userEmail)
 
     switch(userEmail){
         case 'test@ashburton.com':
@@ -139,9 +150,12 @@ app.post('/generate-gameday-image', async (req, res) => {
    <div style="display: flex; margin-top: 40px;">
         <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
         <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
-        <div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
-            ${gameFormat}
-        </div>
+        ${!isAfl ? 
+            `<div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
+                ${gameFormat}
+            </div>` 
+            : ''
+        }
     </div>
 
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
