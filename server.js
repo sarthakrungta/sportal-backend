@@ -55,11 +55,11 @@ function isAflClub(userEmail){
 
 
 async function fetchDesignSettings(email) {
-    initialSettings = ['', '', '']
+    initialSettings = ['', '', '', '']
 
     try {
         // Query the PostgreSQL database using the provided email
-        const queryText = 'SELECT primary_color, secondary_color, font FROM clubs_dirty WHERE email = $1';
+        const queryText = 'SELECT primary_color, secondary_color, font, text_color FROM clubs_dirty WHERE email = $1';
         const { rows } = await pool.query(queryText, [email]);
 
         // Check if the query returned any rows
@@ -67,6 +67,7 @@ async function fetchDesignSettings(email) {
             initialSettings[0] = rows[0].primary_color
             initialSettings[1] = rows[0].secondary_color
             initialSettings[2] = rows[0].font
+            initialSettings[3] = rows[0].text_color
         }
 
     } catch (err) {
@@ -117,7 +118,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     const gameVenueParts = gameVenue.split('/');
     const shortGameVenue = gameVenueParts[0].trim();
 
-    const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail);
+    const [primaryColor, secondaryColor, fontFamily, textColor] = await fetchDesignSettings(userEmail);
 
     const isAfl = isAflClub(userEmail)
 
@@ -143,7 +144,7 @@ app.post('/generate-gameday-image', async (req, res) => {
             : ''}
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 100;">GAMEDAY</h1>
-        <h4 style="color: grey; margin-top: 0; font-size: 50">${competitionName}</h4>
+        <h4 style="color: grey; margin-top: 0; font-size: 50">${isAfl ? '' : competitionName}</h4>
     </div>
 
     <!-- MIDDLE SECTION -->
@@ -161,8 +162,8 @@ app.post('/generate-gameday-image', async (req, res) => {
     <div style="color: ${primaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 60;">${shortTeamA}</h1> 
         <h1 style="margin-bottom: 0px; margin-top: 0; font-size: 60;">${shortTeamB}</h1>
-        <h2 style="color: grey; margin-top: 20; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
-        <h2 style="color: grey; margin-top: 0; font-size: 40;">${shortGameVenue}</h2>
+        <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 20; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
+        <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 0; font-size: 40;">${shortGameVenue}</h2>
     </div>
 </div>`;
 
