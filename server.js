@@ -7,7 +7,6 @@ const cors = require('cors');
 const sharp = require('sharp');
 const { Pool } = require('pg');
 const moment = require('moment'); // Moment.js can help parse the date strings
-const patternImage = require('./assets/pattern');
 
 const html = (...args) =>
     import('satori-html').then(({ html }) => html(...args));
@@ -18,6 +17,7 @@ app.use(cors());
 
 const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
 const fontDataExtenda = readFileSync(resolve(__dirname, './fonts/Extenda-40.ttf'));
+const fontDataDynamo = readFileSync(resolve(__dirname, './fonts/Dynamo.ttf'))
 
 const ashburton_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/ashburton_sponsor.jpg';
 const monash_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/monash_sponsor.png';
@@ -33,19 +33,19 @@ const pool = new Pool({
 function formatPlayerName(name) {
     // Split the name into words
     return name
-      .split(' ') // Split the string by spaces
-      .map(word => {
-        if (word) {
-          // Capitalize the first letter and lowercase the rest
-          return word[0].toUpperCase() + word.slice(1).toLowerCase();
-        }
-        return word; // For empty strings, return as is
-      })
-      .join(' '); // Join the words back into a single string
+        .split(' ') // Split the string by spaces
+        .map(word => {
+            if (word) {
+                // Capitalize the first letter and lowercase the rest
+                return word[0].toUpperCase() + word.slice(1).toLowerCase();
+            }
+            return word; // For empty strings, return as is
+        })
+        .join(' '); // Join the words back into a single string
 }
 
-function isAflClub(userEmail){
-    switch (userEmail){
+function isAflClub(userEmail) {
+    switch (userEmail) {
         case 'test@monashblues.com':
             return true
         default:
@@ -79,7 +79,7 @@ async function fetchDesignSettings(email) {
 
     return initialSettings;
 }
-  
+
 
 function shortenName(name, maxLength) {
     if (name.length <= maxLength) {
@@ -122,7 +122,7 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     const isAfl = isAflClub(userEmail)
 
-    switch(userEmail){
+    switch (userEmail) {
         case 'test@ashburton.com':
         case 'test@monashblues.com':
             sponsorLogo = ashburton_sponsor;
@@ -151,10 +151,10 @@ app.post('/generate-gameday-image', async (req, res) => {
    <div style="display: flex; margin-top: 40px;">
         <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
         <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
-        ${!isAfl ? 
+        ${!isAfl ?
             `<div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
                 ${gameFormat}
-            </div>` 
+            </div>`
             : ''
         }
     </div>
@@ -213,18 +213,18 @@ app.post('/generate-gameday-image', async (req, res) => {
 });
 
 app.post('/generate-players-image', async (req, res) => {
-    const { teamALogoUrl, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
+    const { teamALogoUrl,competitionName, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
 
     const maxLength = 23;
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
 
-    const [primaryColor, secondaryColor, fontFamily] = await fetchDesignSettings(userEmail)
+    const [primaryColor, secondaryColor, fontFamily, textColor] = await fetchDesignSettings(userEmail)
 
     const playerListFiltered = playerList.filter(player => player.toLowerCase() !== "fill-in");
 
     var sponsorLogo = '';
-    switch(userEmail){
+    switch (userEmail) {
         case 'test@ashburton.com':
         case 'test@monashblues.com':
             sponsorLogo = ashburton_sponsor;
@@ -233,19 +233,140 @@ app.post('/generate-players-image', async (req, res) => {
             sponsorLogo = monash_sponsor;
     }
 
+    const isAfl = isAflClub(userEmail);
+
     // Generate player cards HTML from the player list
     const playerCardsArray = await Promise.all(playerListFiltered.map(async (player) => `
     <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: white; font-size:50px">${formatPlayerName(player)}</h3>
+        <h3 style="margin: 0; color: ${secondaryColor}; font-size:${isAfl ? '2em' : '50px'}">${formatPlayerName(player)}</h3>
     </div>
 `));
 
     // Join the resolved array into a single string
     const playerCards = playerCardsArray.join('').toString();
+    const playerCardsLeft = playerCardsArray.slice(0, 12).join('').toString();
+    const playerCardsRight = playerCardsArray.slice(12).join('').toString();
 
     const shadowColor = hexToRgba(primaryColor, 0.5);
 
-    markupString = `<div style="position: relative; font-family: ${fontFamily}; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; padding: 40px 20px 40px 40px;">
+    markupString = isAfl ? `<div
+    style="position: relative; font-family: Roboto; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
+
+    <!-- Main Content Centered -->
+    <div style="text-align: center; display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 50px;">
+        <!-- Title -->
+        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; font-family: Extenda; margin: 0 0 40px 0;">
+            STARTING LINE UP
+        </h1>
+
+        <!-- VS Row -->
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 40px;">
+            <!-- Left Team Logo -->
+            <img src="${teamALogoUrl}"
+                width="80"
+                height="80"
+                style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}"
+                alt="Team A Logo" />
+
+            <!-- Right Team Logo -->
+            <img src="${teamBLogoUrl}"
+                width="80"
+                height="80"
+                style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}"
+                alt="Team A Logo" />
+
+            <!-- Team A vs Team B Text -->
+            <div style="display: flex; flex-direction: column;">
+                <span style="color: ${textColor == '' ? secondaryColor : textColor}; font-size: 28px; font-weight: 500;">
+                    ${shortenName(teamA,15)} vs ${shortenName(teamB,15)}
+                </span>
+
+                <span style="color: ${secondaryColor}; font-size: 28px; font-weight: 500;">
+                    ${shortenName(competitionName,45)}
+                </span>
+            </div>
+
+        </div>
+
+        <!-- Player Lists Container -->
+        <!-- Player Lists Container -->
+<div style="display: flex; justify-content: center; gap: 80px;">
+    <!-- Left Player List -->
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        ${playerCardsLeft}
+    </div>
+
+    <!-- Right Player List -->
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        ${playerCardsRight}
+    </div>
+</div>
+
+    </div>
+
+    <!-- Decorative shapes -->
+<!-- Fake skewed shape using background SVG -->
+<div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
+  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
+</svg>
+</div>
+
+<div style="display: flex; position: absolute; bottom: 190px; right: -15px; width: 50px; height: 100px;">
+  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
+</svg>
+</div>
+
+<div style="display: flex; position: absolute; bottom: 50px; right: -15px; width: 50px; height: 100px;">
+  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
+</svg>
+</div>
+
+
+
+<div style="display: flex; position: absolute; top: 0px; left: -20px; width: 120px; height: 50px;">
+    <svg width="120" height="40" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}"/>
+    </svg>
+</div>
+
+<div style="display: flex; position: absolute; top: 0px; left: 130px; width: 110px; height: 50px;">
+    <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}"/>
+    </svg>
+</div>
+
+<div style="display: flex; position: absolute; top: 0px; left: 270px; width: 110px; height: 50px;">
+    <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}"/>
+    </svg>
+</div>
+
+
+<div style="display: flex; position: absolute; top: 0px; left: 0px; width: 50px; height: 100px;">
+  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
+</svg>
+</div>
+
+<div style="display: flex; position: absolute; top: 140px; left: 0px; width: 50px; height: 100px;">
+  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
+</svg>
+</div>
+
+<div style="display: flex; position: absolute; top: 280px; left: 0px; width: 50px; height: 100px;">
+  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
+</svg>
+</div>
+
+
+</div>`
+        :
+        `<div style="position: relative; font-family: ${fontFamily}; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; padding: 40px 20px 40px 40px;">
   <!-- Pseudo-element for border with rounded top corners -->
   <div style="
       content: '';
@@ -262,8 +383,8 @@ app.post('/generate-players-image', async (req, res) => {
   "></div>
 
   ${sponsorLogo != ''
-      ? `<img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 1000px; right: 100px;" />`
-      : ''}
+            ? `<img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 1000px; right: 100px;" />`
+            : ''}
 
   <!-- Main Container Split into Left and Right -->
   <div style="display: flex; width: 100%; height: 100%;">
@@ -277,7 +398,7 @@ app.post('/generate-players-image', async (req, res) => {
       <!-- Player List Section (Bottom of Left) -->
       <div style="flex: 1; padding-top: 0; margin-top: -40px; display: flex; flex-direction: column;">
         ${playerCards}
-    </div>
+      </div>
 
 
     </div>
@@ -333,7 +454,7 @@ app.post('/generate-players-image', async (req, res) => {
     const svg = await satori(
         markup,
         {
-            width: 1200,
+            width: isAfl ? 1000 : 1200,
             height: 1200,
             fonts: [
                 {
@@ -345,6 +466,12 @@ app.post('/generate-players-image', async (req, res) => {
                 {
                     name: 'Roboto',
                     data: fontDataRoboto,
+                    weight: 400,
+                    style: 'normal',
+                },
+                {
+                    name: 'Dynamo',
+                    data: fontDataDynamo,
                     weight: 400,
                     style: 'normal',
                 }
