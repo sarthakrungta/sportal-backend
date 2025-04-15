@@ -17,7 +17,7 @@ app.use(cors());
 
 const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
 const fontDataExtenda = readFileSync(resolve(__dirname, './fonts/Extenda-40.ttf'));
-const fontDataDynamo = readFileSync(resolve(__dirname, './fonts/Dynamo.ttf'))
+const fontDataLuckiest = readFileSync(resolve(__dirname, './fonts/LuckiestGuy-Regular.ttf'))
 
 const ashburton_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/ashburton_sponsor.jpg';
 const monash_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/monash_sponsor.png';
@@ -132,7 +132,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     }
 
     markupString = `
-<div style="border-bottom: 30px solid ${primaryColor}; font-family: ${fontFamily}; border-right: 30px solid ${primaryColor}; height: 1000px; width: 1000px; background-color: ${secondaryColor}; padding-left: 50px; padding-top: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+<div style="border-bottom: 30px solid ${secondaryColor}; font-family: ${fontFamily}; border-right: 30px solid ${secondaryColor}; height: 1000px; width: 1000px; background-color: ${primaryColor}; padding-left: 50px; padding-top: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
         <img src="${associationLogo}" style="width: 100px; position: absolute; top: 20px; right: 20px;" />
@@ -142,7 +142,7 @@ app.post('/generate-gameday-image', async (req, res) => {
                 <img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 800px; right: 75px;" />
               </div>`
             : ''}
-    <div style="color: ${primaryColor}; display: flex; flex-direction: column">
+    <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 100;">GAMEDAY</h1>
         <h4 style="color: grey; margin-top: 0; font-size: 50">${isAfl ? '' : competitionName}</h4>
     </div>
@@ -159,7 +159,7 @@ app.post('/generate-gameday-image', async (req, res) => {
         }
     </div>
 
-    <div style="color: ${primaryColor}; display: flex; flex-direction: column">
+    <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 60;">${shortTeamA}</h1> 
         <h1 style="margin-bottom: 0px; margin-top: 0; font-size: 60;">${shortTeamB}</h1>
         <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 20; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
@@ -213,7 +213,7 @@ app.post('/generate-gameday-image', async (req, res) => {
 });
 
 app.post('/generate-players-image', async (req, res) => {
-    const { teamALogoUrl,competitionName, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
+    const { teamALogoUrl, competitionName, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
 
     const maxLength = 23;
     const shortTeamA = shortenName(teamA, maxLength);
@@ -250,12 +250,12 @@ app.post('/generate-players-image', async (req, res) => {
     const shadowColor = hexToRgba(primaryColor, 0.5);
 
     markupString = isAfl ? `<div
-    style="position: relative; font-family: Roboto; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
+    style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
 
     <!-- Main Content Centered -->
-    <div style="text-align: center; display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 50px;">
+    <div style="display: flex; flex-direction: column; width: 100%; margin-top: 50px; margin-left: 120px">
         <!-- Title -->
-        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; font-family: Extenda; margin: 0 0 40px 0;">
+        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; margin: 0 0 10px 0;">
             STARTING LINE UP
         </h1>
 
@@ -278,11 +278,11 @@ app.post('/generate-players-image', async (req, res) => {
             <!-- Team A vs Team B Text -->
             <div style="display: flex; flex-direction: column;">
                 <span style="color: ${textColor == '' ? secondaryColor : textColor}; font-size: 28px; font-weight: 500;">
-                    ${shortenName(teamA,15)} vs ${shortenName(teamB,15)}
+                    ${shortenName(teamA, 15)} vs ${shortenName(teamB, 15)}
                 </span>
 
                 <span style="color: ${secondaryColor}; font-size: 28px; font-weight: 500;">
-                    ${shortenName(competitionName,45)}
+                    ${shortenName(competitionName, 45)}
                 </span>
             </div>
 
@@ -290,7 +290,7 @@ app.post('/generate-players-image', async (req, res) => {
 
         <!-- Player Lists Container -->
         <!-- Player Lists Container -->
-<div style="display: flex; justify-content: center; gap: 80px;">
+<div style="display: flex; gap: 100px;">
     <!-- Left Player List -->
     <div style="display: flex; flex-direction: column; gap: 10px;">
         ${playerCardsLeft}
@@ -362,6 +362,10 @@ app.post('/generate-players-image', async (req, res) => {
   <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
 </svg>
 </div>
+
+${sponsorLogo != ''
+    ? `<img src="${sponsorLogo}" style="width: 120px; position: absolute; bottom: 100px; right: 440px;" />`
+    : ''}
 
 
 </div>`
@@ -470,8 +474,8 @@ app.post('/generate-players-image', async (req, res) => {
                     style: 'normal',
                 },
                 {
-                    name: 'Dynamo',
-                    data: fontDataDynamo,
+                    name: 'Luckiest',
+                    data: fontDataLuckiest,
                     weight: 400,
                     style: 'normal',
                 }
