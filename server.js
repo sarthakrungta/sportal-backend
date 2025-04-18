@@ -515,7 +515,7 @@ app.get('/get-club-info/:email', async (req, res) => {
         // Send the club data as the response
         const clubDataRaw = rows[0].clubdata;
 
-        const clubData = cleanUpClubData(clubDataRaw, false);
+        const clubData = cleanUpClubData(clubDataRaw, {});
 
         res.json(clubData);
 
@@ -541,7 +541,33 @@ app.get('/get-club-info-player-filter/:email', async (req, res) => {
         // Send the club data as the response
         const clubDataRaw = rows[0].clubdata;
 
-        const clubData = cleanUpClubData(clubDataRaw, true);
+        const clubData = cleanUpClubData(clubDataRaw, {filterByPlayerList: true});
+
+        res.json(clubData);
+
+    } catch (err) {
+        console.error('Error fetching club data:', err);
+        res.status(500).send('An error occurred while fetching the club data');
+    }
+});
+
+app.get('/get-club-info-results-filter/:email', async (req, res) => {
+    const email = req.params.email;
+
+    try {
+        // Query the PostgreSQL database using the provided email
+        const queryText = 'SELECT * FROM clubs_dirty WHERE email = $1';
+        const { rows } = await pool.query(queryText, [email]);
+
+        // Check if the query returned any rows
+        if (rows.length === 0) {
+            return res.status(404).send('Club not found for the given email');
+        }
+
+        // Send the club data as the response
+        const clubDataRaw = rows[0].clubdata;
+
+        const clubData = cleanUpClubData(clubDataRaw,{ filterByResultedFixtures: true });
 
         res.json(clubData);
 
@@ -552,7 +578,7 @@ app.get('/get-club-info-player-filter/:email', async (req, res) => {
 });
 
 
-function cleanUpClubData(clubData, filterByPlayerList) {
+function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResultedFixtures = false }) {
     // Helper function to check if a fixture is within the next 14 days
     const isWithinNext14Days = (fixtureDateString) => {
         // Parse the date string to a moment object
@@ -565,16 +591,25 @@ function cleanUpClubData(clubData, filterByPlayerList) {
         return fixtureDate.isBetween(today, fourteenDaysFromNow, 'days', '[]');
     };
 
+    const isPastFixture = (fixtureDateString) => {
+        const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
+        const today = moment();
+        return fixtureDate.isBefore(today);
+    };
+
     // Clean up fixtures by removing those with "Unknown Fixture" names and those outside the next 14 days
     const cleanUpFixtures = (teams) => {
         return teams.map(team => {
             team.fixtures = team.fixtures.filter(fixture =>
-                fixture.fixtureName !== "Unknown Fixture" &&
-                isWithinNext14Days(fixture.fixtureDate) &&
-                (
-                    !filterByPlayerList || // If the filterByPlayerList is false, skip this condition
-                    (fixture.playerList && fixture.playerList.length >= 3) // Only apply the playerList filter if the flag is true
-                )
+            {
+                const isValidName = fixture.fixtureName !== "Unknown Fixture";
+                const hasValidPlayers = !filterByPlayerList || (fixture.playerList && fixture.playerList.length >= 3);
+                const isValidDate = filterByResultedFixtures
+                    ? isPastFixture(fixture.fixtureDate)
+                    : isWithinNext14Days(fixture.fixtureDate);
+
+                return isValidName && hasValidPlayers && isValidDate;
+            }
             );
             return team;
         }).filter(team => team.fixtures && team.fixtures.length > 0); // Only keep teams with valid fixtures
