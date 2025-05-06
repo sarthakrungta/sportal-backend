@@ -212,6 +212,282 @@ app.post('/generate-gameday-image', async (req, res) => {
     }
 });
 
+app.post('/generate-result-image', async (req, res) => {
+    const { teamALogoUrl, teamBLogoUrl, userEmail, finalScores } = req.body;
+    const [primaryColor, secondaryColor, fontFamily, textColor] = await fetchDesignSettings(userEmail)
+
+    var sponsorLogo = '';
+    switch (userEmail) {
+        case 'test@ashburton.com':
+        case 'test@monashblues.com':
+            sponsorLogo = ashburton_sponsor;
+            break;
+        case 'test@monashcc.com':
+            sponsorLogo = monash_sponsor;
+    }
+
+    const bestPlayers = finalScores.bestPlayers;
+    const bestPlayersArray = bestPlayers.split(',').map(name => name.trim());
+
+    //Split into two halves
+    const half = Math.ceil(bestPlayersArray.length / 2);
+    const firstHalfPlayers = bestPlayersArray.slice(0, half);
+    const secondHalfPlayers = bestPlayersArray.slice(half);
+
+
+    // Extracting data for Team A
+    const teamAFinalScore = finalScores.teamA.finalScore;
+    const teamAPeriodScores = finalScores.teamA.periodScores; // This is an array
+    const teamAFinalBreakdown = finalScores.teamA.finalBreakdown;
+
+    // Extracting data for Team B
+    const teamBFinalScore = finalScores.teamB.finalScore;
+    const teamBPeriodScores = finalScores.teamB.periodScores; // This is an array
+    const teamBFinalBreakdown = finalScores.teamB.finalBreakdown;
+
+    // Example usage
+    console.log('Best Players: ', bestPlayers)
+    console.log('Team A Final:', teamAFinalScore, 'Breakdown:', teamAFinalBreakdown);
+    console.log('Team A Period Scores:', teamAPeriodScores);
+    console.log('Team B Final:', teamBFinalScore, 'Breakdown:', teamBFinalBreakdown);
+    console.log('Team B Period Scores:', teamBPeriodScores);
+
+
+
+    const markupString = `
+    <div style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
+
+    <!-- Main Content Centered -->
+    <div style="display: flex; flex-direction: column; width: 100%; margin-top: 80px; margin-left: 220px">
+        <!-- Title -->
+        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; margin: 0;">
+            MATCHDAY
+        </h1>
+        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; margin: 0 0 10px 0;">
+            RESULT
+        </h1>
+
+        <!-- VS Row -->
+        <div style="display: flex; align-items: center; gap: 40px; margin-bottom: 40px;">
+            <!-- Left Team Logo -->
+            <img src="${teamALogoUrl}" width="150" height="150" style="border: 2px solid ${secondaryColor};" alt="Team A Logo" />
+
+            <!-- Left Final Score and Breakdown -->
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div style="font-size: 4.5em; font-weight: bold; color: ${secondaryColor};">
+                    ${finalScores.teamA.finalScore}
+                </div>
+                <div style="font-size: 2em; color: ${textColor == '' ? secondaryColor : textColor};">
+                    (${finalScores.teamA.finalBreakdown})
+                </div>
+            </div>
+
+            <!-- Right Final Score and Breakdown -->
+            <div style="display: flex; flex-direction: column; align-items: center; margin-left: 20px;">
+                <div style="font-size: 4.5em; font-weight: bold; color: ${secondaryColor};">
+                    ${finalScores.teamB.finalScore}
+                </div>
+                <div style="font-size: 2em; color: ${textColor == '' ? secondaryColor : textColor};">
+                    (${finalScores.teamB.finalBreakdown})
+                </div>
+            </div>
+
+            <!-- Right Team Logo -->
+            <img src="${teamBLogoUrl}" width="150" height="150" style="border: 2px solid ${secondaryColor};" alt="Team B Logo" />
+        </div>
+
+
+        <!-- Table with 2 rows -->
+        <!-- Score Rows Container -->
+        <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 20px; color: ${primaryColor}; margin-left: 0px;">
+
+            <!-- Team A Row -->
+            <div style="display: flex; width: 100%; max-width: 700px; gap: 2px;">
+                <!-- Team A Logo -->
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+                    <img src="${teamALogoUrl}" />
+                </div>
+
+                <!-- Scores -->
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamAPeriodScores[0]}
+                </div>
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamAPeriodScores[1]}
+                </div>
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamAPeriodScores[2]}
+                </div>
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamAPeriodScores[3]}
+                </div>
+            </div>
+
+            <!-- Team B Row -->
+            <div style="display: flex; width: 100%; max-width: 700px; gap: 2px;">
+                <!-- Team B Logo -->
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; background-color: ${textColor == '' ? secondaryColor : textColor}">
+                    <img src="${teamBLogoUrl}" />
+                </div>
+
+                <!-- Scores -->
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamBPeriodScores[0]}
+                </div>
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamBPeriodScores[1]}
+                </div>
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamBPeriodScores[2]}
+                </div>
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
+                    ${teamBPeriodScores[3]}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Best Players Section -->
+        <div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end; margin-top: 60px; margin-right: 250px; width: 600px;">
+        <!-- Title -->
+        <div style="font-size: 40px; font-weight: bold; color: ${secondaryColor}; margin-bottom: 20px; padding: 5px; background-color:${textColor}">
+            BEST PLAYERS
+        </div>
+
+        <!-- Players in 2 columns -->
+        <div style="display: flex; gap: 60px; font-size: 32px; color: ${textColor === '' ? secondaryColor : textColor};">
+            <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+                ${firstHalfPlayers
+            .map(player => `<div>${player}</div>`)
+            .join('')
+        }
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+                ${secondHalfPlayers
+            .map(player => `<div>${player}</div>`)
+            .join('')
+        }
+            </div>
+        </div>
+    </div>
+
+
+    </div>
+
+    <!-- Decorative shapes -->
+    <!-- Fake skewed shape using background SVG -->
+    <div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; bottom: 190px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; bottom: 50px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+
+
+    <div style="display: flex; position: absolute; top: 0px; left: -20px; width: 120px; height: 50px;">
+        <svg width="120" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: 130px; width: 110px; height: 50px;">
+        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: 270px; width: 110px; height: 50px;">
+        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+
+    <div style="display: flex; position: absolute; top: 0px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 140px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 280px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    ${sponsorLogo != ''
+            ? `<img src="${sponsorLogo}" style="width: 120px; position: absolute; top: 100px; right: 100px;" />`
+            : ''}
+
+
+</div>    
+    `
+
+    const markup = await html(markupString);
+
+
+    const svg = await satori(
+        markup,
+        {
+            width: 1000,
+            height: 1200,
+            fonts: [
+                {
+                    name: 'Extenda',
+                    data: fontDataExtenda,
+                    weight: 400,
+                    style: 'normal',
+                },
+                {
+                    name: 'Roboto',
+                    data: fontDataRoboto,
+                    weight: 400,
+                    style: 'normal',
+                },
+                {
+                    name: 'Luckiest',
+                    data: fontDataLuckiest,
+                    weight: 400,
+                    style: 'normal',
+                }
+            ],
+        },
+    )
+
+    // Insert log entry into the database AFTER successful image generation
+    const insertQuery = `
+            INSERT INTO image_generation_logs (user_email, selected_template)
+            VALUES ($1, $2)
+        `;
+
+    await pool.query(insertQuery, [userEmail, "Starting XI template"]); // Assuming competitionName is the template
+
+
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+
+    // Respond with the generated SVG
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuffer);
+})
+
 app.post('/generate-players-image', async (req, res) => {
     const { teamALogoUrl, competitionName, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
 
@@ -364,8 +640,8 @@ app.post('/generate-players-image', async (req, res) => {
 </div>
 
 ${sponsorLogo != ''
-    ? `<img src="${sponsorLogo}" style="width: 120px; position: absolute; bottom: 100px; right: 440px;" />`
-    : ''}
+            ? `<img src="${sponsorLogo}" style="width: 120px; position: absolute; bottom: 100px; right: 440px;" />`
+            : ''}
 
 
 </div>`
@@ -541,7 +817,7 @@ app.get('/get-club-info-player-filter/:email', async (req, res) => {
         // Send the club data as the response
         const clubDataRaw = rows[0].clubdata;
 
-        const clubData = cleanUpClubData(clubDataRaw, {filterByPlayerList: true});
+        const clubData = cleanUpClubData(clubDataRaw, { filterByPlayerList: true });
 
         res.json(clubData);
 
@@ -567,7 +843,7 @@ app.get('/get-club-info-results-filter/:email', async (req, res) => {
         // Send the club data as the response
         const clubDataRaw = rows[0].clubdata;
 
-        const clubData = cleanUpClubData(clubDataRaw,{ filterByResultedFixtures: true });
+        const clubData = cleanUpClubData(clubDataRaw, { filterByResultedFixtures: true });
 
         res.json(clubData);
 
@@ -600,8 +876,7 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
     // Clean up fixtures by removing those with "Unknown Fixture" names and those outside the next 14 days
     const cleanUpFixtures = (teams) => {
         return teams.map(team => {
-            team.fixtures = team.fixtures.filter(fixture =>
-            {
+            team.fixtures = team.fixtures.filter(fixture => {
                 const isValidName = fixture.fixtureName !== "Unknown Fixture";
                 const hasValidPlayers = !filterByPlayerList || (fixture.playerList && fixture.playerList.length >= 3);
                 const isValidDate = filterByResultedFixtures
