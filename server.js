@@ -122,6 +122,7 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     const isAfl = isAflClub(userEmail)
 
+    var sponsorLogo = '';
     switch (userEmail) {
         case 'test@ashburton.com':
         case 'test@monashblues.com':
