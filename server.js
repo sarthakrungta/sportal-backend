@@ -254,6 +254,29 @@ app.post('/generate-result-image', async (req, res) => {
 
 
 
+    let bestPlayersMarkup = '';
+
+    if (bestPlayers && bestPlayers.trim() !== '') {
+        bestPlayersMarkup = `
+        <div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end; margin-top: 60px; margin-right: 250px; width: 600px;">
+            <div style="font-size: 40px; font-weight: bold; color: ${secondaryColor}; margin-bottom: 20px; padding: 5px; background-color:${textColor}">
+                BEST PLAYERS
+            </div>
+
+            <div style="display: flex; gap: 60px; font-size: 32px; color: ${textColor === '' ? secondaryColor : textColor};">
+                <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+                    ${firstHalfPlayers.map(player => `<div>${player}</div>`).join('')}
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+                    ${secondHalfPlayers.map(player => `<div>${player}</div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+
+
+
+
     const markupString = `
     <div style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
 
@@ -347,29 +370,7 @@ app.post('/generate-result-image', async (req, res) => {
 
         </div>
 
-        <!-- Best Players Section -->
-        <div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end; margin-top: 60px; margin-right: 250px; width: 600px;">
-        <!-- Title -->
-        <div style="font-size: 40px; font-weight: bold; color: ${secondaryColor}; margin-bottom: 20px; padding: 5px; background-color:${textColor}">
-            BEST PLAYERS
-        </div>
-
-        <!-- Players in 2 columns -->
-        <div style="display: flex; gap: 60px; font-size: 32px; color: ${textColor === '' ? secondaryColor : textColor};">
-            <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
-                ${firstHalfPlayers
-            .map(player => `<div>${player}</div>`)
-            .join('')
-        }
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
-                ${secondHalfPlayers
-            .map(player => `<div>${player}</div>`)
-            .join('')
-        }
-            </div>
-        </div>
-    </div>
+        ${bestPlayersMarkup}
 
 
     </div>
