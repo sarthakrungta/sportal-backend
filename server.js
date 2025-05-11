@@ -875,6 +875,20 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
         return fixtureDate.isBefore(today);
     };
 
+    const validateScores = (finalScores) => {
+        const teamA = finalScores.teamA;
+        const teamB = finalScores.teamB;
+
+        const hasTeamAScore = teamA && teamA.finalScore && teamA.finalScore.trim() !== "" &&
+            teamA.periodScores && teamA.periodScores && teamA.periodScores.length > 0
+
+        const hasTeamBScore = teamB && teamB.finalScore && teamB.finalScore.trim() !== "" &&
+            teamB.periodScores && teamB.periodScores && teamB.periodScores.length > 0
+
+        return hasTeamAScore && hasTeamBScore;
+
+    }
+
     // Clean up fixtures by removing those with "Unknown Fixture" names and those outside the next 14 days
     const cleanUpFixtures = (teams) => {
         return teams.map(team => {
@@ -885,7 +899,9 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
                     ? isPastFixture(fixture.fixtureDate)
                     : isWithinNext14Days(fixture.fixtureDate);
 
-                return isValidName && hasValidPlayers && isValidDate;
+                const hasRequiredData = filterByResultedFixtures ? validateScores(fixture.finalScores) : true;
+
+                return isValidName && hasValidPlayers && isValidDate && hasRequiredData;
             }
             );
             return team;
