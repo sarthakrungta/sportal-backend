@@ -863,7 +863,6 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
         const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
         const today = moment(); // Get today's date
         const fourteenDaysFromNow = moment().add(14, 'days');
-        const fourteendaysbefore = moment().subtract(14, 'days');
 
         // Check if the fixture date is within the next 14 days
         return fixtureDate.isBetween(today, fourteenDaysFromNow, 'days', '[]');
@@ -872,7 +871,9 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
     const isPastFixture = (fixtureDateString) => {
         const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
         const today = moment();
-        return fixtureDate.isBefore(today);
+        const fourteendaysbefore = moment().subtract(14, 'days');
+
+        return fixtureDate.isBetween(fourteendaysbefore, today, 'days', '[]');
     };
 
     const validateScores = (finalScores) => {
