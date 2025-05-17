@@ -880,10 +880,10 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
         const teamB = finalScores.teamB;
 
         const hasTeamAScore = teamA && teamA.finalScore && teamA.finalScore.trim() !== "" &&
-            teamA.periodScores && teamA.periodScores && teamA.periodScores.length > 0
+            teamA.periodScores && teamA.periodScores && teamA.periodScores.length >= 3
 
         const hasTeamBScore = teamB && teamB.finalScore && teamB.finalScore.trim() !== "" &&
-            teamB.periodScores && teamB.periodScores && teamB.periodScores.length > 0
+            teamB.periodScores && teamB.periodScores && teamB.periodScores.length >= 3
 
         return hasTeamAScore && hasTeamBScore;
 
