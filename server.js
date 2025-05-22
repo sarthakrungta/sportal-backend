@@ -319,7 +319,7 @@ app.post('/generate-result-image', async (req, res) => {
     if (bestPlayers && bestPlayers.trim() !== '') {
         bestPlayersMarkup = `
         <div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end; margin-top: 60px; margin-right: 250px; width: 600px;">
-            <div style="font-size: 40px; font-weight: bold; color: ${secondaryColor}; margin-bottom: 20px; padding: 5px; background-color:${textColor}">
+            <div style="font-size: 40px; font-weight: bold; color: ${secondaryColor}; margin-bottom: 20px; padding: 5px;">
                 BEST PLAYERS
             </div>
 
