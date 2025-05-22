@@ -133,14 +133,14 @@ app.post('/generate-gameday-image', async (req, res) => {
     }
 
     markupString = `
-<div style="border-bottom: 30px solid ${secondaryColor}; font-family: ${fontFamily}; border-right: 30px solid ${secondaryColor}; height: 1000px; width: 1000px; background-color: ${primaryColor}; padding-left: 50px; padding-top: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+<div style="font-family: ${fontFamily}; height: 1200px; width: 1000px; background-color: ${primaryColor}; padding-left:100px; padding-top: 120px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
-        <img src="${associationLogo}" style="width: 100px; position: absolute; top: 20px; right: 20px;" />
+        <img src="${associationLogo}" style="width: 140px; position: absolute; top: -100px; right: 20px;" />
     </div>
     ${sponsorLogo !== ''
             ? `<div style="display: flex; flex-direction: column">
-                <img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 800px; right: 75px;" />
+                <img src="${sponsorLogo}" style="width: 200px; position: absolute; top: 800px; right: 400px;" />
               </div>`
             : ''}
     <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
@@ -150,8 +150,8 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     <!-- MIDDLE SECTION -->
    <div style="display: flex; margin-top: 40px;">
-        <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
-        <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white; margin-right: 10px" />
+        <img src="${teamALogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
+        <img src="${teamBLogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         ${!isAfl ?
             `<div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
                 ${gameFormat}
@@ -166,6 +166,65 @@ app.post('/generate-gameday-image', async (req, res) => {
         <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 20; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
         <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 0; font-size: 40;">${shortGameVenue}</h2>
     </div>
+
+        <!-- Decorative shapes -->
+    <!-- Fake skewed shape using background SVG -->
+    <div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; bottom: 190px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; bottom: 50px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+
+
+    <div style="display: flex; position: absolute; top: 0px; left: -20px; width: 120px; height: 50px;">
+        <svg width="120" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: 130px; width: 110px; height: 50px;">
+        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: 270px; width: 110px; height: 50px;">
+        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+
+    <div style="display: flex; position: absolute; top: 0px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 140px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 280px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
 </div>`;
 
     try {
@@ -175,7 +234,7 @@ app.post('/generate-gameday-image', async (req, res) => {
             markup,
             {
                 width: 1000,
-                height: 1000,
+                height: 1200,
                 fonts: [
                     {
                         name: 'Extenda',
