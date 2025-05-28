@@ -160,10 +160,10 @@ app.post('/generate-gameday-image', async (req, res) => {
         }
     </div>
 
-    <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
+    <div style="color: ${secondaryColor}; display: flex; flex-direction: column; margin-top: 30px">
         <h1 style="margin-bottom: 0px; font-size: 60;">${shortTeamA}</h1> 
         <h1 style="margin-bottom: 0px; margin-top: 0; font-size: 60;">${shortTeamB}</h1>
-        <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 20; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
+        <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 40px; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
         <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 0; font-size: 40;">${shortGameVenue}</h2>
     </div>
 
