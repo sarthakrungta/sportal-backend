@@ -47,8 +47,6 @@ function formatPlayerName(name) {
 function isAflClub(userEmail) {
     switch (userEmail) {
         case 'test@monashblues.com':
-        case 'test@monashdemons.com':
-        case 'monash@fida.org.au':
             return true
         default:
             return false
@@ -146,7 +144,7 @@ app.post('/generate-gameday-image', async (req, res) => {
               </div>`
             : ''}
     <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
-        <h1 style="margin-bottom: 0px; font-size: 100;">GAMEDAY</h1>
+        <h1 style="margin-bottom: 0px; font-size: 6.5em;">GAMEDAY</h1>
         <h4 style="color: grey; margin-top: 0; font-size: 50">${isAfl ? '' : competitionName}</h4>
     </div>
 
@@ -155,7 +153,7 @@ app.post('/generate-gameday-image', async (req, res) => {
         <img src="${teamALogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         <img src="${teamBLogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         ${!isAfl ?
-            `<div style="display: flex; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
+            `<div style="display: flex; align-items: center; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
                 ${gameFormat}
             </div>`
             : ''
