@@ -47,6 +47,8 @@ function formatPlayerName(name) {
 function isAflClub(userEmail) {
     switch (userEmail) {
         case 'test@monashblues.com':
+        case 'test@monashdemons.com':
+        case 'monash@fida.org.au':
             return true
         default:
             return false
@@ -133,7 +135,7 @@ app.post('/generate-gameday-image', async (req, res) => {
     }
 
     markupString = `
-<div style="font-family: ${fontFamily}; height: 1200px; width: 1000px; background-color: ${primaryColor}; padding-left:100px; padding-top: 120px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+<div style="font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; padding-left:100px; padding-top: 120px; overflow: hidden; position: relative; display: flex; flex-direction: column">
     <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
         <img src="${associationLogo}" style="width: 140px; position: absolute; top: -100px; right: 20px;" />
@@ -245,6 +247,12 @@ app.post('/generate-gameday-image', async (req, res) => {
                     {
                         name: 'Roboto',
                         data: fontDataRoboto,
+                        weight: 400,
+                        style: 'normal',
+                    },
+                    {
+                        name: 'Luckiest',
+                        data: fontDataLuckiest,
                         weight: 400,
                         style: 'normal',
                     }
@@ -939,12 +947,9 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
         const teamA = finalScores.teamA;
         const teamB = finalScores.teamB;
 
-        const hasTeamAScore = teamA && teamA.finalScore && teamA.finalScore.trim() !== "" &&
-            teamA.periodScores && teamA.periodScores && teamA.periodScores.length >= 3
+        const hasTeamAScore = teamA && teamA.finalScore && teamA.finalScore.trim() !== "" 
 
-        const hasTeamBScore = teamB && teamB.finalScore && teamB.finalScore.trim() !== "" &&
-            teamB.periodScores && teamB.periodScores && teamB.periodScores.length >= 3
-
+        const hasTeamBScore = teamB && teamB.finalScore && teamB.finalScore.trim() !== ""
         return hasTeamAScore && hasTeamBScore;
 
     }
