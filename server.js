@@ -581,7 +581,7 @@ app.post('/generate-players-image', async (req, res) => {
     // Generate player cards HTML from the player list
     const playerCardsArray = await Promise.all(playerListFiltered.map(async (player) => `
     <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: ${secondaryColor}; font-size:${isAfl ? '2em' : '50px'}">${formatPlayerName(player)}</h3>
+        <h3 style="margin: 0; color: ${primaryColor}; font-size:${isAfl ? '2em' : '50px'}">${formatPlayerName(player)}</h3>
     </div>
 `));
 
@@ -647,7 +647,7 @@ app.post('/generate-players-image', async (req, res) => {
 
     </div>
 
-    <!-- Decorative shapes -->
+<!-- Decorative shapes -->
 <!-- Fake skewed shape using background SVG -->
 <div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
   <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
@@ -945,7 +945,7 @@ function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResulte
         const teamA = finalScores.teamA;
         const teamB = finalScores.teamB;
 
-        const hasTeamAScore = teamA && teamA.finalScore && teamA.finalScore.trim() !== "" 
+        const hasTeamAScore = teamA && teamA.finalScore && teamA.finalScore.trim() !== ""
 
         const hasTeamBScore = teamB && teamB.finalScore && teamB.finalScore.trim() !== ""
         return hasTeamAScore && hasTeamBScore;
