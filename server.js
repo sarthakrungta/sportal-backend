@@ -1,155 +1,162 @@
+require('dotenv').config();
 const express = require('express');
-const bodyParser = require('body-parser');
-const satori = require('satori').default;
-const { readFileSync } = require('fs');
-const { resolve } = require('path');
 const cors = require('cors');
-const sharp = require('sharp');
-const { Pool } = require('pg');
-const moment = require('moment'); // Moment.js can help parse the date strings
 
-const html = (...args) =>
-    import('satori-html').then(({ html }) => html(...args));
+// Import modules
+const { getOrgByEmail, updateOrgCache, isCacheFresh, logImageGeneration } = require('./database');
+const { fetchCompleteOrgData } = require('./playhq');
+const { generateImageFromMarkup, shortenName, isAflClub } = require('./image-generator');
 
 const app = express();
-app.use(bodyParser.json());
+const PORT = process.env.PORT || 3000;
+
+// ==================== MIDDLEWARE ====================
+
 app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
-const fontDataExtenda = readFileSync(resolve(__dirname, './fonts/Extenda-40.ttf'));
-const fontDataLuckiest = readFileSync(resolve(__dirname, './fonts/LuckiestGuy-Regular.ttf'))
-
-const ashburton_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/ashburton_sponsor.jpg';
-const monash_sponsor = 'https://sportal-images.s3.ap-southeast-2.amazonaws.com/monash_sponsor.png';
-
-// Use the connection string to connect to the remote PostgreSQL database
-const pool = new Pool({
-    connectionString: 'postgresql://sportal_database_user:6h6G3tE82CnKPjF5fXbFY4tT6ffZD3Aa@dpg-crn2e6l6l47c73a8ll0g-a.singapore-postgres.render.com/sportal_database',
-    ssl: {
-        rejectUnauthorized: false, // Required to connect to some remote servers
-    }
+// Request logging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
 });
 
-function formatPlayerName(name) {
-    // Split the name into words
-    return name
-        .split(' ') // Split the string by spaces
-        .map(word => {
-            if (word) {
-                // Capitalize the first letter and lowercase the rest
-                return word[0].toUpperCase() + word.slice(1).toLowerCase();
-            }
-            return word; // For empty strings, return as is
-        })
-        .join(' '); // Join the words back into a single string
-}
+// ==================== ROUTES ====================
 
-function isAflClub(userEmail) {
-    switch (userEmail) {
-        case 'test@monashblues.com':
-            return true
-        default:
-            return false
-    }
-}
+/**
+ * Health check endpoint
+ */
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV 
+  });
+});
 
+/**
+ * GET /api/org-data
+ * Fetch organization data (seasons, teams, fixtures)
+ * Query params: userEmail (required)
+ */
+app.get('/api/org-data', async (req, res) => {
+  const { userEmail } = req.query;
 
-async function fetchDesignSettings(email) {
-    initialSettings = ['', '', '', '']
+  if (!userEmail) {
+    return res.status(400).json({ error: 'userEmail is required' });
+  }
 
-    try {
-        // Query the PostgreSQL database using the provided email
-        const queryText = 'SELECT primary_color, secondary_color, font, text_color FROM clubs_dirty WHERE email = $1';
-        const { rows } = await pool.query(queryText, [email]);
+  try {
+    // Get organization from database
+    const org = await getOrgByEmail(userEmail);
 
-        // Check if the query returned any rows
-        if (rows.length > 0) {
-            initialSettings[0] = rows[0].primary_color
-            initialSettings[1] = rows[0].secondary_color
-            initialSettings[2] = rows[0].font
-            initialSettings[3] = rows[0].text_color
-        }
-
-    } catch (err) {
-        console.error('Error fetching club data:', err);
-        res.status(500).send('An error occurred while fetching the club data');
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
     }
 
+    console.log(`✓ Found organization: ${org.org_name}`);
 
-
-    return initialSettings;
-}
-
-
-function shortenName(name, maxLength) {
-    if (name.length <= maxLength) {
-        return name;
+    // Check if cache is fresh
+    const cacheHours = parseInt(process.env.CACHE_DURATION_HOURS) || 6;
+    
+    if (org.cache_json && isCacheFresh(org.cache_updated_at, cacheHours)) {
+      console.log('✓ Returning cached data');
+      return res.json({
+        ...org.cache_json,
+        source: 'cache',
+        lastUpdated: org.cache_updated_at
+      });
     }
 
-    let shortened = name.slice(0, maxLength);
+    // Fetch fresh data from PlayHQ
+    console.log('⟳ Cache is stale - fetching from PlayHQ...');
+    const orgData = await fetchCompleteOrgData(
+      org.playhq_org_id, 
+      org.playhq_api_key, 
+      org.playhq_tenant
+    );
 
-    // If the next character is a space or we are at the end of the string, return as is
-    if (name[maxLength] === ' ' || name.length === maxLength) {
-        return shortened;
-    }
+    // Update cache
+    await updateOrgCache(org.org_id, orgData);
 
-    // Otherwise, find the last space within the truncated part and cut off at the last word boundary
-    if (shortened.includes(' ')) {
-        return shortened.slice(0, shortened.lastIndexOf(' '));
-    }
+    // Return fresh data
+    res.json({
+      ...orgData,
+      source: 'playhq',
+      lastUpdated: new Date()
+    });
 
-    return shortened;
-}
+  } catch (error) {
+    console.error('❌ Error in /api/org-data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch organization data',
+      message: error.message 
+    });
+  }
+});
 
-function hexToRgba(hex, opacity) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-}
-
+/**
+ * POST /generate-gameday-image
+ * Generate a gameday image using Satori
+ */
 app.post('/generate-gameday-image', async (req, res) => {
-    const { competitionName, teamALogoUrl, teamA, teamB, teamBLogoUrl, gameFormat, gameDate, gameVenue, sponsor1LogoUrl, associationLogo, userEmail } = req.body;
+  const {
+    competitionName,
+    teamALogoUrl,
+    teamA,
+    teamB,
+    teamBLogoUrl,
+    gameFormat,
+    gameDate,
+    gameVenue,
+    associationLogo,
+    userEmail,
+    fixtureId // Optional: for future live data fetching
+  } = req.body;
 
+  try {
+    // Get organization design settings
+    const org = await getOrgByEmail(userEmail);
+
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    // Get design settings with defaults
+    const primaryColor = org.primary_color || '#1a1a1a';
+    const secondaryColor = org.secondary_color || '#FFD700';
+    const textColor = org.text_color || 'grey';
+    const sponsorLogo = org.sponsor_logo_url || '';
+
+    // Shorten team names if needed
     const maxLength = 27;
     const shortTeamA = shortenName(teamA, maxLength);
     const shortTeamB = shortenName(teamB, maxLength);
 
+    // Extract venue name (before the slash)
     const gameVenueParts = gameVenue.split('/');
     const shortGameVenue = gameVenueParts[0].trim();
 
-    const [primaryColor, secondaryColor, fontFamily, textColor] = await fetchDesignSettings(userEmail);
+    const isAfl = isAflClub(userEmail);
 
-    const isAfl = isAflClub(userEmail)
-
-    var sponsorLogo = '';
-    switch (userEmail) {
-        case 'test@ashburton.com':
-        case 'test@monashblues.com':
-            sponsorLogo = ashburton_sponsor;
-            break;
-        case 'test@monashcc.com':
-            sponsorLogo = monash_sponsor;
-    }
-
-    markupString = `
+    // Generate HTML markup
+    const markupString = `
 <div style="font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; padding-left:100px; padding-top: 120px; overflow: hidden; position: relative; display: flex; flex-direction: column">
-    <!--TOP TITLE-->
     <div style="display: flex; flex-direction: column">
         <img src="${associationLogo}" style="width: 140px; position: absolute; top: -100px; right: 20px;" />
     </div>
     ${sponsorLogo !== ''
-            ? `<div style="display: flex; flex-direction: column">
-                <img src="${sponsorLogo}" style="width: 200px; position: absolute; top: 800px; right: 400px;" />
-              </div>`
-            : ''}
+        ? `<div style="display: flex; flex-direction: column">
+            <img src="${sponsorLogo}" style="width: 200px; position: absolute; top: 800px; right: 400px;" />
+          </div>`
+        : ''}
     <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 6.5em;">GAMEDAY</h1>
         <h4 style="color: grey; margin-top: 0; font-size: 50">${isAfl ? '' : competitionName}</h4>
     </div>
 
-    <!-- MIDDLE SECTION -->
-   <div style="display: flex; margin-top: 40px;">
+    <div style="display: flex; margin-top: 40px;">
         <img src="${teamALogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         <img src="${teamBLogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         ${!isAfl ?
@@ -163,12 +170,10 @@ app.post('/generate-gameday-image', async (req, res) => {
     <div style="color: ${secondaryColor}; display: flex; flex-direction: column; margin-top: 30px">
         <h1 style="margin-bottom: 0px; font-size: 60;">${shortTeamA}</h1> 
         <h1 style="margin-bottom: 0px; margin-top: 0; font-size: 60;">${shortTeamB}</h1>
-        <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 40px; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
-        <h2 style="color: ${textColor == '' ? 'grey' : textColor}; margin-top: 0; font-size: 40;">${shortGameVenue}</h2>
+        <h2 style="color: ${textColor}; margin-top: 40px; margin-bottom: 0px; font-size: 40;">${gameDate}</h2>
+        <h2 style="color: ${textColor}; margin-top: 0; font-size: 40;">${shortGameVenue}</h2>
     </div>
 
-        <!-- Decorative shapes -->
-    <!-- Fake skewed shape using background SVG -->
     <div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
         <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
             <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
@@ -187,8 +192,6 @@ app.post('/generate-gameday-image', async (req, res) => {
         </svg>
     </div>
 
-
-
     <div style="display: flex; position: absolute; top: 0px; left: -20px; width: 120px; height: 50px;">
         <svg width="120" height="40" xmlns="http://www.w3.org/2000/svg">
             <polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}" />
@@ -206,7 +209,6 @@ app.post('/generate-gameday-image', async (req, res) => {
             <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
         </svg>
     </div>
-
 
     <div style="display: flex; position: absolute; top: 0px; left: 0px; width: 50px; height: 100px;">
         <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
@@ -227,781 +229,48 @@ app.post('/generate-gameday-image', async (req, res) => {
     </div>
 </div>`;
 
-    try {
-        const markup = await html(markupString);
+    // Generate PNG image
+    const pngBuffer = await generateImageFromMarkup(markupString);
 
-        const svg = await satori(
-            markup,
-            {
-                width: 1000,
-                height: 1200,
-                fonts: [
-                    {
-                        name: 'Extenda',
-                        data: fontDataExtenda,
-                        weight: 400,
-                        style: 'normal',
-                    },
-                    {
-                        name: 'Roboto',
-                        data: fontDataRoboto,
-                        weight: 400,
-                        style: 'normal',
-                    },
-                    {
-                        name: 'Luckiest',
-                        data: fontDataLuckiest,
-                        weight: 400,
-                        style: 'normal',
-                    }
-                ],
-            },
-        );
+    // Log image generation
+    await logImageGeneration(userEmail, 'Gameday Template');
 
-        const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
-
-        // Insert log entry into the database AFTER successful image generation
-        const insertQuery = `
-            INSERT INTO image_generation_logs (user_email, selected_template)
-            VALUES ($1, $2)
-        `;
-
-        await pool.query(insertQuery, [userEmail, "Gameday template"]); // Assuming competitionName is the template
-
-        // Respond with the generated image
-        res.setHeader('Content-Type', 'image/png');
-        res.send(pngBuffer);
-
-    } catch (err) {
-        console.error('Error generating image or inserting log:', err);
-        res.status(500).json({ error: 'Failed to generate image or log the event' });
-    }
-});
-
-app.post('/generate-result-image', async (req, res) => {
-    const { teamALogoUrl, teamBLogoUrl, userEmail, finalScores } = req.body;
-    const [primaryColor, secondaryColor, fontFamily, textColor] = await fetchDesignSettings(userEmail)
-
-    var sponsorLogo = '';
-    switch (userEmail) {
-        case 'test@ashburton.com':
-        case 'test@monashblues.com':
-            sponsorLogo = ashburton_sponsor;
-            break;
-        case 'test@monashcc.com':
-            sponsorLogo = monash_sponsor;
-    }
-
-    const bestPlayers = finalScores.bestPlayers;
-    const bestPlayersArray = bestPlayers.split(',').map(name => name.trim());
-
-    //Split into two halves
-    const half = Math.ceil(bestPlayersArray.length / 2);
-    const firstHalfPlayers = bestPlayersArray.slice(0, half);
-    const secondHalfPlayers = bestPlayersArray.slice(half);
-
-
-    // Extracting data for Team A
-    const teamAFinalScore = finalScores.teamA.finalScore;
-    const teamAPeriodScores = finalScores.teamA.periodScores; // This is an array
-    const teamAFinalBreakdown = finalScores.teamA.finalBreakdown;
-
-    // Extracting data for Team B
-    const teamBFinalScore = finalScores.teamB.finalScore;
-    const teamBPeriodScores = finalScores.teamB.periodScores; // This is an array
-    const teamBFinalBreakdown = finalScores.teamB.finalBreakdown;
-
-    // Example usage
-    console.log('Best Players: ', bestPlayers)
-    console.log('Team A Final:', teamAFinalScore, 'Breakdown:', teamAFinalBreakdown);
-    console.log('Team A Period Scores:', teamAPeriodScores);
-    console.log('Team B Final:', teamBFinalScore, 'Breakdown:', teamBFinalBreakdown);
-    console.log('Team B Period Scores:', teamBPeriodScores);
-
-
-
-    let bestPlayersMarkup = '';
-
-    if (bestPlayers && bestPlayers.trim() !== '') {
-        bestPlayersMarkup = `
-        <div style="display: flex; flex-direction: column; align-items: flex-end; align-self: flex-end; margin-top: 60px; margin-right: 250px; width: 600px;">
-            <div style="font-size: 40px; font-weight: bold; color: ${secondaryColor}; margin-bottom: 20px; padding: 5px;">
-                BEST PLAYERS
-            </div>
-
-            <div style="display: flex; gap: 60px; font-size: 32px; color: ${textColor === '' ? secondaryColor : textColor};">
-                <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
-                    ${firstHalfPlayers.map(player => `<div>${player}</div>`).join('')}
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
-                    ${secondHalfPlayers.map(player => `<div>${player}</div>`).join('')}
-                </div>
-            </div>
-        </div>`;
-    }
-
-
-
-
-    const markupString = `
-    <div style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
-
-    <!-- Main Content Centered -->
-    <div style="display: flex; flex-direction: column; width: 100%; margin-top: 80px; margin-left: 220px">
-        <!-- Title -->
-        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; margin: 0;">
-            MATCHDAY
-        </h1>
-        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; margin: 0 0 10px 0;">
-            RESULT
-        </h1>
-
-        <!-- VS Row -->
-        <div style="display: flex; align-items: center; gap: 40px; margin-bottom: 40px;">
-            <!-- Left Team Logo -->
-            <img src="${teamALogoUrl}" width="150" height="150" style="border: 2px solid ${secondaryColor};" alt="Team A Logo" />
-
-            <!-- Left Final Score and Breakdown -->
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="font-size: 4.5em; font-weight: bold; color: ${secondaryColor};">
-                    ${finalScores.teamA.finalScore}
-                </div>
-                <div style="font-size: 2em; color: ${textColor == '' ? secondaryColor : textColor};">
-                    (${finalScores.teamA.finalBreakdown})
-                </div>
-            </div>
-
-            <!-- Right Final Score and Breakdown -->
-            <div style="display: flex; flex-direction: column; align-items: center; margin-left: 20px;">
-                <div style="font-size: 4.5em; font-weight: bold; color: ${secondaryColor};">
-                    ${finalScores.teamB.finalScore}
-                </div>
-                <div style="font-size: 2em; color: ${textColor == '' ? secondaryColor : textColor};">
-                    (${finalScores.teamB.finalBreakdown})
-                </div>
-            </div>
-
-            <!-- Right Team Logo -->
-            <img src="${teamBLogoUrl}" width="150" height="150" style="border: 2px solid ${secondaryColor};" alt="Team B Logo" />
-        </div>
-
-
-        <!-- Table with 2 rows -->
-        <!-- Score Rows Container -->
-        <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 20px; color: ${primaryColor}; margin-left: 0px;">
-
-            <!-- Team A Row -->
-            <div style="display: flex; width: 100%; max-width: 700px; gap: 2px;">
-                <!-- Team A Logo -->
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
-                    <img src="${teamALogoUrl}" />
-                </div>
-
-                <!-- Scores -->
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamAPeriodScores[0]}
-                </div>
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamAPeriodScores[1]}
-                </div>
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamAPeriodScores[2]}
-                </div>
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamAPeriodScores[3]}
-                </div>
-            </div>
-
-            <!-- Team B Row -->
-            <div style="display: flex; width: 100%; max-width: 700px; gap: 2px;">
-                <!-- Team B Logo -->
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; background-color: ${textColor == '' ? secondaryColor : textColor}">
-                    <img src="${teamBLogoUrl}" />
-                </div>
-
-                <!-- Scores -->
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamBPeriodScores[0]}
-                </div>
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamBPeriodScores[1]}
-                </div>
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamBPeriodScores[2]}
-                </div>
-                <div style="flex: 1; display: flex; justify-content: center; align-items: center; font-size: 4em; background-color: ${secondaryColor}">
-                    ${teamBPeriodScores[3]}
-                </div>
-            </div>
-
-        </div>
-
-        ${bestPlayersMarkup}
-
-
-    </div>
-
-    <!-- Decorative shapes -->
-    <!-- Fake skewed shape using background SVG -->
-    <div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
-        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-    <div style="display: flex; position: absolute; bottom: 190px; right: -15px; width: 50px; height: 100px;">
-        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-    <div style="display: flex; position: absolute; bottom: 50px; right: -15px; width: 50px; height: 100px;">
-        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-
-
-    <div style="display: flex; position: absolute; top: 0px; left: -20px; width: 120px; height: 50px;">
-        <svg width="120" height="40" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-    <div style="display: flex; position: absolute; top: 0px; left: 130px; width: 110px; height: 50px;">
-        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-    <div style="display: flex; position: absolute; top: 0px; left: 270px; width: 110px; height: 50px;">
-        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-
-    <div style="display: flex; position: absolute; top: 0px; left: 0px; width: 50px; height: 100px;">
-        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-    <div style="display: flex; position: absolute; top: 140px; left: 0px; width: 50px; height: 100px;">
-        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-    <div style="display: flex; position: absolute; top: 280px; left: 0px; width: 50px; height: 100px;">
-        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
-        </svg>
-    </div>
-
-    ${sponsorLogo != ''
-            ? `<img src="${sponsorLogo}" style="width: 120px; position: absolute; top: 100px; right: 100px;" />`
-            : ''}
-
-
-</div>    
-    `
-
-    const markup = await html(markupString);
-
-
-    const svg = await satori(
-        markup,
-        {
-            width: 1000,
-            height: 1200,
-            fonts: [
-                {
-                    name: 'Extenda',
-                    data: fontDataExtenda,
-                    weight: 400,
-                    style: 'normal',
-                },
-                {
-                    name: 'Roboto',
-                    data: fontDataRoboto,
-                    weight: 400,
-                    style: 'normal',
-                },
-                {
-                    name: 'Luckiest',
-                    data: fontDataLuckiest,
-                    weight: 400,
-                    style: 'normal',
-                }
-            ],
-        },
-    )
-
-    // Insert log entry into the database AFTER successful image generation
-    const insertQuery = `
-            INSERT INTO image_generation_logs (user_email, selected_template)
-            VALUES ($1, $2)
-        `;
-
-    await pool.query(insertQuery, [userEmail, "Starting XI template"]); // Assuming competitionName is the template
-
-
-    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
-
-    // Respond with the generated SVG
+    // Send image
     res.setHeader('Content-Type', 'image/png');
     res.send(pngBuffer);
-})
 
-app.post('/generate-players-image', async (req, res) => {
-    const { teamALogoUrl, competitionName, teamA, teamB, teamBLogoUrl, gameDate, sponsor1LogoUrl, userEmail, playerList, fixtureName, gameFormat } = req.body;
-
-    const maxLength = 23;
-    const shortTeamA = shortenName(teamA, maxLength);
-    const shortTeamB = shortenName(teamB, maxLength);
-
-    const [primaryColor, secondaryColor, fontFamily, textColor] = await fetchDesignSettings(userEmail)
-
-    const playerListFiltered = playerList.filter(player => player.toLowerCase() !== "fill-in");
-
-    var sponsorLogo = '';
-    switch (userEmail) {
-        case 'test@ashburton.com':
-        case 'test@monashblues.com':
-            sponsorLogo = ashburton_sponsor;
-            break;
-        case 'test@monashcc.com':
-            sponsorLogo = monash_sponsor;
-    }
-
-    const isAfl = isAflClub(userEmail);
-
-    // Generate player cards HTML from the player list
-    const playerCardsArray = await Promise.all(playerListFiltered.map(async (player) => `
-    <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: ${primaryColor}; font-size:${isAfl ? '2em' : '50px'}">${formatPlayerName(player)}</h3>
-    </div>
-`));
-
-    // Join the resolved array into a single string
-    const playerCards = playerCardsArray.join('').toString();
-    const playerCardsLeft = playerCardsArray.slice(0, 12).join('').toString();
-    const playerCardsRight = playerCardsArray.slice(12).join('').toString();
-
-    const shadowColor = hexToRgba(primaryColor, 0.5);
-
-    markupString = isAfl ? `<div
-    style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
-
-    <!-- Main Content Centered -->
-    <div style="display: flex; flex-direction: column; width: 100%; margin-top: 50px; margin-left: 120px">
-        <!-- Title -->
-        <h1 style="font-size: 6.5em; color: ${textColor == '' ? secondaryColor : textColor}; margin: 0 0 10px 0;">
-            STARTING LINE UP
-        </h1>
-
-        <!-- VS Row -->
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 40px;">
-            <!-- Left Team Logo -->
-            <img src="${teamALogoUrl}"
-                width="80"
-                height="80"
-                style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}"
-                alt="Team A Logo" />
-
-            <!-- Right Team Logo -->
-            <img src="${teamBLogoUrl}"
-                width="80"
-                height="80"
-                style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}"
-                alt="Team A Logo" />
-
-            <!-- Team A vs Team B Text -->
-            <div style="display: flex; flex-direction: column;">
-                <span style="color: ${textColor == '' ? secondaryColor : textColor}; font-size: 28px; font-weight: 500;">
-                    ${shortenName(teamA, 15)} vs ${shortenName(teamB, 15)}
-                </span>
-
-                <span style="color: ${secondaryColor}; font-size: 28px; font-weight: 500;">
-                    ${shortenName(competitionName, 45)}
-                </span>
-            </div>
-
-        </div>
-
-        <!-- Player Lists Container -->
-        <!-- Player Lists Container -->
-<div style="display: flex; gap: 100px;">
-    <!-- Left Player List -->
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-        ${playerCardsLeft}
-    </div>
-
-    <!-- Right Player List -->
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-        ${playerCardsRight}
-    </div>
-</div>
-
-    </div>
-
-<!-- Decorative shapes -->
-<!-- Fake skewed shape using background SVG -->
-<div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
-  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
-</svg>
-</div>
-
-<div style="display: flex; position: absolute; bottom: 190px; right: -15px; width: 50px; height: 100px;">
-  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
-</svg>
-</div>
-
-<div style="display: flex; position: absolute; bottom: 50px; right: -15px; width: 50px; height: 100px;">
-  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
-</svg>
-</div>
-
-
-
-<div style="display: flex; position: absolute; top: 0px; left: -20px; width: 120px; height: 50px;">
-    <svg width="120" height="40" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}"/>
-    </svg>
-</div>
-
-<div style="display: flex; position: absolute; top: 0px; left: 130px; width: 110px; height: 50px;">
-    <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}"/>
-    </svg>
-</div>
-
-<div style="display: flex; position: absolute; top: 0px; left: 270px; width: 110px; height: 50px;">
-    <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}"/>
-    </svg>
-</div>
-
-
-<div style="display: flex; position: absolute; top: 0px; left: 0px; width: 50px; height: 100px;">
-  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
-</svg>
-</div>
-
-<div style="display: flex; position: absolute; top: 140px; left: 0px; width: 50px; height: 100px;">
-  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
-</svg>
-</div>
-
-<div style="display: flex; position: absolute; top: 280px; left: 0px; width: 50px; height: 100px;">
-  <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/>
-</svg>
-</div>
-
-${sponsorLogo != ''
-            ? `<img src="${sponsorLogo}" style="width: 120px; position: absolute; bottom: 100px; right: 440px;" />`
-            : ''}
-
-
-</div>`
-        :
-        `<div style="position: relative; font-family: ${fontFamily}; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; padding: 40px 20px 40px 40px;">
-  <!-- Pseudo-element for border with rounded top corners -->
-  <div style="
-      content: '';
-      position: absolute;
-      top: 1150px;
-      left: 0;
-      right: 0;
-      height: 50px;
-      background-color: ${primaryColor};
-      border-top-left-radius: 50px;
-      border-top-right-radius: 50px;
-      z-index: 1;
-      display: flex;
-  "></div>
-
-  ${sponsorLogo != ''
-            ? `<img src="${sponsorLogo}" style="width: 160px; position: absolute; top: 1000px; right: 100px;" />`
-            : ''}
-
-  <!-- Main Container Split into Left and Right -->
-  <div style="display: flex; width: 100%; height: 100%;">
-
-    <!-- Left Section (Title and Player List) -->
-    <div style="width: 620px; display: flex; flex-direction: column; gap: 20px; padding-right: 20px;">
-
-      <!-- Title Section (Top of Left) -->
-      <h1 style="font-size: 200px; color: ${primaryColor}; font-family: Extenda; text-shadow: 14px 10px ${shadowColor}; margin-top: 0;">STARTING XI</h1>
-
-      <!-- Player List Section (Bottom of Left) -->
-      <div style="flex: 1; padding-top: 0; margin-top: -40px; display: flex; flex-direction: column;">
-        ${playerCards}
-      </div>
-
-
-    </div>
-
-    <!-- Right Section (Combined Card) -->
-    <div style="width: 580px; display: flex; flex-direction: column; gap: 20px;">
-
-      <!-- Combined Card Section -->
-      <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; align-items: flex-start; padding: 30px; width: 520px; border-radius: 30px;">
-        <!-- Team Logos -->
-        <div style="display: flex; gap: 40px; margin-bottom: 20px;">
-          <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white;" />
-          <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white;" />
-        </div>
-
-        <!-- Team Names aligned left at the very start of the card -->
-        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
-          <h2 style="margin: 0; font-size: 40px;">${shortTeamA}</h2>
-          <h2 style="margin: 0; font-size: 40px;">${shortTeamB}</h2>
-        </div>
-      </div>
-
-      <!-- Small Cards Section, positioned directly below the main card -->
-      <div style="display: flex; gap: 20px;">
-        <!-- Small Card 1 -->
-        <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
-          <span style="color: ${primaryColor}; font-size: 24px;">${fixtureName}</span>
-        </div>
-        <!-- Small Card 2 -->
-        <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
-          <span style="color: ${primaryColor}; font-size: 24px;">${gameFormat}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bottom-right tilted rectangle -->
-  <div style="
-      position: absolute;
-      bottom: 4px;
-      right: -20px;
-      width: 100px;
-      height: 500px;
-      background-color: ${primaryColor};
-      transform: rotate(-7deg);
-      display: flex;
-  "></div>
-</div>
-`
-    const markup = await html(markupString);
-
-
-    const svg = await satori(
-        markup,
-        {
-            width: isAfl ? 1000 : 1200,
-            height: 1200,
-            fonts: [
-                {
-                    name: 'Extenda',
-                    data: fontDataExtenda,
-                    weight: 400,
-                    style: 'normal',
-                },
-                {
-                    name: 'Roboto',
-                    data: fontDataRoboto,
-                    weight: 400,
-                    style: 'normal',
-                },
-                {
-                    name: 'Luckiest',
-                    data: fontDataLuckiest,
-                    weight: 400,
-                    style: 'normal',
-                }
-            ],
-        },
-    )
-
-    // Insert log entry into the database AFTER successful image generation
-    const insertQuery = `
-            INSERT INTO image_generation_logs (user_email, selected_template)
-            VALUES ($1, $2)
-        `;
-
-    await pool.query(insertQuery, [userEmail, "Starting XI template"]); // Assuming competitionName is the template
-
-
-    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
-
-    // Respond with the generated SVG
-    res.setHeader('Content-Type', 'image/png');
-    res.send(pngBuffer);
+  } catch (error) {
+    console.error('❌ Error generating gameday image:', error);
+    res.status(500).json({ error: 'Failed to generate image', message: error.message });
+  }
 });
 
-app.get('/get-club-info/:email', async (req, res) => {
-    const email = req.params.email;
+// ==================== ERROR HANDLING ====================
 
-    try {
-        // Query the PostgreSQL database using the provided email
-        const queryText = 'SELECT * FROM clubs_dirty WHERE email = $1';
-        const { rows } = await pool.query(queryText, [email]);
-
-        // Check if the query returned any rows
-        if (rows.length === 0) {
-            return res.status(404).send('Club not found for the given email');
-        }
-
-        // Send the club data as the response
-        const clubDataRaw = rows[0].clubdata;
-
-        const clubData = cleanUpClubData(clubDataRaw, {});
-
-        res.json(clubData);
-
-    } catch (err) {
-        console.error('Error fetching club data:', err);
-        res.status(500).send('An error occurred while fetching the club data');
-    }
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
 });
 
-app.get('/get-club-info-player-filter/:email', async (req, res) => {
-    const email = req.params.email;
-
-    try {
-        // Query the PostgreSQL database using the provided email
-        const queryText = 'SELECT * FROM clubs_dirty WHERE email = $1';
-        const { rows } = await pool.query(queryText, [email]);
-
-        // Check if the query returned any rows
-        if (rows.length === 0) {
-            return res.status(404).send('Club not found for the given email');
-        }
-
-        // Send the club data as the response
-        const clubDataRaw = rows[0].clubdata;
-
-        const clubData = cleanUpClubData(clubDataRaw, { filterByPlayerList: true });
-
-        res.json(clubData);
-
-    } catch (err) {
-        console.error('Error fetching club data:', err);
-        res.status(500).send('An error occurred while fetching the club data');
-    }
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Unhandled error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
 });
 
-app.get('/get-club-info-results-filter/:email', async (req, res) => {
-    const email = req.params.email;
+// ==================== START SERVER ====================
 
-    try {
-        // Query the PostgreSQL database using the provided email
-        const queryText = 'SELECT * FROM clubs_dirty WHERE email = $1';
-        const { rows } = await pool.query(queryText, [email]);
-
-        // Check if the query returned any rows
-        if (rows.length === 0) {
-            return res.status(404).send('Club not found for the given email');
-        }
-
-        // Send the club data as the response
-        const clubDataRaw = rows[0].clubdata;
-
-        const clubData = cleanUpClubData(clubDataRaw, { filterByResultedFixtures: true });
-
-        res.json(clubData);
-
-    } catch (err) {
-        console.error('Error fetching club data:', err);
-        res.status(500).send('An error occurred while fetching the club data');
-    }
-});
-
-
-function cleanUpClubData(clubData, { filterByPlayerList = false, filterByResultedFixtures = false }) {
-    // Helper function to check if a fixture is within the next 14 days
-    const isWithinNext14Days = (fixtureDateString) => {
-        // Parse the date string to a moment object
-        const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
-        const today = moment(); // Get today's date
-        const fourteenDaysFromNow = moment().add(14, 'days');
-
-        // Check if the fixture date is within the next 14 days
-        return fixtureDate.isBetween(today, fourteenDaysFromNow, 'days', '[]');
-    };
-
-    const isPastFixture = (fixtureDateString) => {
-        const fixtureDate = moment(fixtureDateString, "dddd, DD MMMM YYYY");
-        const today = moment();
-        const fourteendaysbefore = moment().subtract(14, 'days');
-
-        return fixtureDate.isBetween(fourteendaysbefore, today, 'days', '[]');
-    };
-
-    const validateScores = (finalScores) => {
-        const teamA = finalScores.teamA;
-        const teamB = finalScores.teamB;
-
-        const hasTeamAScore = teamA && teamA.finalScore && teamA.finalScore.trim() !== ""
-
-        const hasTeamBScore = teamB && teamB.finalScore && teamB.finalScore.trim() !== ""
-        return hasTeamAScore && hasTeamBScore;
-
-    }
-
-    // Clean up fixtures by removing those with "Unknown Fixture" names and those outside the next 14 days
-    const cleanUpFixtures = (teams) => {
-        return teams.map(team => {
-            team.fixtures = team.fixtures.filter(fixture => {
-                const isValidName = fixture.fixtureName !== "Unknown Fixture";
-                const hasValidPlayers = !filterByPlayerList || (fixture.playerList && fixture.playerList.length >= 3);
-                const isValidDate = filterByResultedFixtures
-                    ? isPastFixture(fixture.fixtureDate)
-                    : isWithinNext14Days(fixture.fixtureDate);
-
-                const hasRequiredData = filterByResultedFixtures ? validateScores(fixture.finalScores) : true;
-
-                return isValidName && hasValidPlayers && isValidDate && hasRequiredData;
-            }
-            );
-            return team;
-        }).filter(team => team.fixtures && team.fixtures.length > 0); // Only keep teams with valid fixtures
-    };
-
-    // Clean up teams by removing those with empty fixtures
-    const cleanUpTeams = (seasons) => {
-        return seasons.map(season => {
-            season.teams = cleanUpFixtures(season.teams);
-            return season;
-        }).filter(season => season.teams && season.teams.length > 0); // Only keep seasons with valid teams
-    };
-
-    // Clean up seasons by removing those with empty teams
-    const cleanUpSeasons = (competitions) => {
-        return competitions.map(competition => {
-            competition.seasons = cleanUpTeams(competition.seasons);
-            return competition;
-        }).filter(competition => competition.seasons && competition.seasons.length > 0); // Only keep competitions with valid seasons
-    };
-
-    // Clean up competitions by removing those with empty seasons
-    const cleanUpCompetitions = (associations) => {
-        return associations.map(association => {
-            association.competitions = cleanUpSeasons(association.competitions);
-            return association;
-        }).filter(association => association.competitions && association.competitions.length > 0); // Only keep associations with valid competitions
-    };
-
-    // Clean up the associations in the club data
-    clubData.association = cleanUpCompetitions(clubData.association);
-
-    return clubData;
-}
-
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+  console.log('');
+  console.log('🚀 ================================================');
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🚀 Health check: http://localhost:${PORT}/health`);
+  console.log('🚀 ================================================');
+  console.log('');
 });
+
+module.exports = app;
