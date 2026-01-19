@@ -188,8 +188,7 @@ app.post('/generate-your-template', async (req, res) => {
   // Create your HTML markup
   const markupString = `<div>Your custom HTML here</div>`;
   
-  // Generate image
-  const pngBuffer = await generateImageFromMarkup(markupString);
+  // Generate image via html and satori conversion
   
   // Log and send
   await logImageGeneration(userEmail, 'Your Template Name');

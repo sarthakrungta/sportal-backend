@@ -1,11 +1,17 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const satori = require('satori').default;
+const html = (...args) => import('satori-html').then(({ html }) => html(...args));
+const { readFileSync } = require('fs');
+const { resolve } = require('path');
+const sharp = require('sharp');
+
 
 // Import modules
 const { getOrgByEmail, updateOrgCache, isCacheFresh, logImageGeneration } = require('./database');
 const { fetchCompleteOrgData } = require('./playhq');
-const { generateImageFromMarkup, shortenName, isAflClub } = require('./image-generator');
+const { shortenName, isAflClub } = require('./image-generator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +27,11 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
+
+const fontDataRoboto = readFileSync(resolve(__dirname, './fonts/Roboto-Black.ttf'));
+const fontDataExtenda = readFileSync(resolve(__dirname, './fonts/Extenda-40.ttf'));
+const fontDataLuckiest = readFileSync(resolve(__dirname, './fonts/LuckiestGuy-Regular.ttf'))
+
 
 // ==================== ROUTES ====================
 
@@ -83,6 +94,7 @@ app.get('/api/org-data', async (req, res) => {
     // Return fresh data
     res.json({
       ...orgData,
+      clubLogo: org.club_logo || null,
       source: 'playhq',
       lastUpdated: new Date()
     });
@@ -230,8 +242,39 @@ app.post('/generate-gameday-image', async (req, res) => {
 </div>`;
 
     // Generate PNG image
-    const pngBuffer = await generateImageFromMarkup(markupString);
 
+    
+        const markup = await html(markupString);
+
+        const svg = await satori(
+            markup,
+            {
+                width: 1000,
+                height: 1200,
+                fonts: [
+                    {
+                        name: 'Extenda',
+                        data: fontDataExtenda,
+                        weight: 400,
+                        style: 'normal',
+                    },
+                    {
+                        name: 'Roboto',
+                        data: fontDataRoboto,
+                        weight: 400,
+                        style: 'normal',
+                    },
+                    {
+                        name: 'Luckiest',
+                        data: fontDataLuckiest,
+                        weight: 400,
+                        style: 'normal',
+                    }
+                ],
+            },
+        );
+
+        const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
     // Log image generation
     await logImageGeneration(userEmail, 'Gameday Template');
 

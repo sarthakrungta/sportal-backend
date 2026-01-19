@@ -6,10 +6,30 @@
 const BASE_URL = 'https://api.playhq.com';
 
 /**
+ * Get the largest logo from the logo sizes array
+ */
+function getLargestLogo(logoObject) {
+  if (!logoObject || !logoObject.sizes || logoObject.sizes.length === 0) {
+    return null;
+  }
+  
+  // Sort by width (descending) and return the URL of the largest
+  const sortedLogos = logoObject.sizes.sort((a, b) => {
+    const widthA = parseInt(a.dimensions?.width) || 0;
+    const widthB = parseInt(b.dimensions?.width) || 0;
+    return widthB - widthA;
+  });
+  
+  return sortedLogos[0]?.url || null;
+}
+
+/**
  * Make a request to PlayHQ API
  */
 async function makePlayHQRequest(endpoint, apiKey, tenant = 'ca') {
   try {
+    console.log('➡️ PlayHQ endpoint:', endpoint);
+
     const response = await fetch(endpoint, {
       headers: {
         'Accept': 'application/json',
@@ -24,12 +44,19 @@ async function makePlayHQRequest(endpoint, apiKey, tenant = 'ca') {
       throw new Error(`PlayHQ API error: ${response.status}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+
+    console.log('============== PLAYHQ JSON RESPONSE ==============');
+    console.dir(data, { depth: null });
+    console.log('============== END PLAYHQ RESPONSE ==============');
+
+    return data;
   } catch (error) {
-    console.error('PlayHQ request failed:', error.message);
+    console.error('❌ PlayHQ request failed:', error);
     throw error;
   }
 }
+
 
 /**
  * Fetch all seasons for an organization
@@ -73,20 +100,60 @@ async function fetchAllTeamsForSeason(seasonId, apiKey, tenant) {
 }
 
 /**
- * Fetch fixtures for a team
- * Note: Update this endpoint when you find the correct one in PlayHQ docs
+ * Fetch fixtures for a team (single page)
  */
-async function fetchFixtures(teamId, apiKey, tenant) {
-  console.log(`Fetching fixtures for team: ${teamId}`);
-  const endpoint = `${BASE_URL}/teams/${teamId}/fixtures`;
+async function fetchFixturesForTeam(teamId, apiKey, tenant, cursor = null) {
+  console.log(`Fetching fixtures for team: ${teamId}${cursor ? ` (cursor: ${cursor})` : ''}`);
   
+  const url = new URL(`${BASE_URL}/v1/teams/${teamId}/fixture`);
+  if (cursor) {
+    url.searchParams.set('cursor', cursor);
+  }
+
   try {
-    const response = await makePlayHQRequest(endpoint, apiKey, tenant);
-    return response.data || response;
+    return await makePlayHQRequest(url.toString(), apiKey, tenant);
   } catch (error) {
     console.warn(`Could not fetch fixtures for team ${teamId}:`, error.message);
-    return [];
+    return { data: [], metadata: { hasMore: false } };
   }
+}
+
+/**
+ * Fetch ALL fixtures for a team (handles pagination)
+ */
+async function fetchAllFixtures(teamId, apiKey, tenant) {
+  let allFixtures = [];
+  let cursor = null;
+
+  do {
+    const response = await fetchFixturesForTeam(teamId, apiKey, tenant, cursor);
+    allFixtures.push(...(response.data || []));
+    
+    cursor = response.metadata?.hasMore ? response.metadata.nextCursor : null;
+  } while (cursor);
+
+  console.log(`   ✓ Fetched ${allFixtures.length} fixtures for team ${teamId}`);
+  return allFixtures;
+}
+
+/**
+ * Check if a fixture date is within the acceptable range (1 year back, 1 year forward)
+ */
+function isFixtureInDateRange(fixtureDate) {
+  if (!fixtureDate) return false;
+  
+  const fixture = new Date(fixtureDate);
+  const now = new Date();
+  
+  // 1 year ago
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(now.getFullYear() - 1);
+  
+  // 1 year from now
+  const oneYearFromNow = new Date();
+  oneYearFromNow.setFullYear(now.getFullYear() + 1);
+  
+  return fixture >= oneYearAgo && fixture <= oneYearFromNow;
 }
 
 /**
@@ -110,56 +177,129 @@ async function fetchCompleteOrgData(orgId, apiKey, tenant) {
     // Fetch all teams for this season
     const allTeams = await fetchAllTeamsForSeason(season.id, apiKey, tenant);
 
-    // Filter teams belonging to this organization
+    console.log(`   → Fetched ${allTeams.length} total teams for this season`);
+
+    // Create a lookup map for ALL team logos (not just org teams)
+    const teamLogoMap = {};
+    allTeams.forEach(team => {
+      teamLogoMap[team.id] = getLargestLogo(team.club?.logo);
+    });
+
+    // Filter teams belonging to this organization (using club.id)
     const orgTeams = allTeams.filter(team => 
-      team.organisation?.id === orgId
+      team.club?.id === orgId
     );
 
-    console.log(`   → ${orgTeams.length} teams belong to your organization`);
+    console.log(`   → ${orgTeams.length} teams belong to your organization (club ID: ${orgId})`);
 
     // 3. Process each team
     const processedTeams = [];
 
     for (const team of orgTeams) {
-      console.log(`   🏆 Processing team: ${team.name}`);
+      const teamName = team.grade?.name || 'Unknown Team';
+      console.log(`   🏆 Processing team: ${teamName}`);
 
-      // Fetch fixtures for this team
-      const fixtures = await fetchFixtures(team.id, apiKey, tenant);
+      // Fetch all fixtures for this team
+      const allFixtures = await fetchAllFixtures(team.id, apiKey, tenant);
+      
+      // Filter fixtures to only include those within date range (1 year back/forward)
+      const filteredFixtures = allFixtures.filter(f => 
+        isFixtureInDateRange(f.schedule?.date)
+      );
+      
+      console.log(`      → Filtered ${filteredFixtures.length}/${allFixtures.length} fixtures (within date range)`);
+
+      // Only include team if it has fixtures in the date range
+      if (filteredFixtures.length === 0) {
+        console.log(`      → Skipping team (no fixtures in date range)`);
+        continue;
+      }
 
       processedTeams.push({
         teamId: team.id,
-        teamName: team.name,
-        teamLogo: team.logos?.default || null,
-        fixtures: fixtures.map(f => ({
-          fixtureId: f.id,
-          fixtureName: f.name || `${f.homeTeam} vs ${f.awayTeam}`,
-          homeTeam: f.homeTeam,
-          awayTeam: f.awayTeam,
-          homeTeamLogo: f.homeTeamLogo || null,
-          awayTeamLogo: f.awayTeamLogo || null,
-          fixtureDate: f.date,
-          venue: f.venue || null,
-          competition: f.competition || null,
-          format: f.format || null,
-          status: f.status,
-          associationLogo: f.associationLogo || null
-        }))
+        teamName: teamName,
+        gradeName: team.grade?.name || null,
+        gradeUrl: team.grade?.url || null,
+        clubName: team.club?.name || null,
+        clubLogo: getLargestLogo(team.club?.logo),
+        fixtures: filteredFixtures.map(f => {
+          // Extract home and away teams from competitors
+          const homeTeam = f.competitors?.find(c => c.isHomeTeam === true);
+          const awayTeam = f.competitors?.find(c => c.isHomeTeam === false);
+          
+          // Look up team logos from the map we created
+          const homeTeamLogo = homeTeam?.id ? teamLogoMap[homeTeam.id] : null;
+          const awayTeamLogo = awayTeam?.id ? teamLogoMap[awayTeam.id] : null;
+          
+          return {
+            fixtureId: f.id,
+            status: f.status, // UPCOMING, COMPLETED, etc.
+            url: f.url,
+            
+            // Round info
+            roundName: f.round?.name || null,
+            roundAbbr: f.round?.abbreviatedName || null,
+            isFinalRound: f.round?.isFinalRound || false,
+            
+            // Grade info
+            gradeName: f.grade?.name || null,
+            gradeUrl: f.grade?.url || null,
+            
+            // Schedule
+            date: f.schedule?.date || null,
+            time: f.schedule?.time || null,
+            timezone: f.schedule?.timezone || null,
+            
+            // Teams
+            homeTeam: homeTeam?.name || null,
+            homeTeamId: homeTeam?.id || null,
+            homeTeamScore: homeTeam?.scoreTotal || null,
+            homeTeamOutcome: homeTeam?.outcome || null,
+            homeTeamLogo: homeTeamLogo,
+            
+            awayTeam: awayTeam?.name || null,
+            awayTeamId: awayTeam?.id || null,
+            awayTeamScore: awayTeam?.scoreTotal || null,
+            awayTeamOutcome: awayTeam?.outcome || null,
+            awayTeamLogo: awayTeamLogo,
+            
+            // Venue
+            venueName: f.venue?.name || null,
+            venueSurface: f.venue?.surfaceName || null,
+            venueAddress: f.venue?.address ? 
+              `${f.venue.address.line1}, ${f.venue.address.suburb}, ${f.venue.address.state} ${f.venue.address.postcode}` 
+              : null,
+          };
+        })
       });
     }
 
-    processedSeasons.push({
-      seasonId: season.id,
-      seasonName: season.name,
-      teams: processedTeams
-    });
+    // Only include season if it has teams with fixtures
+    if (processedTeams.length > 0) {
+      processedSeasons.push({
+        seasonId: season.id,
+        seasonName: season.name,
+        teams: processedTeams
+      });
+    } else {
+      console.log(`   ⚠️  Skipping season (no teams with fixtures in date range)`);
+    }
   }
 
-  console.log('✅ Complete organization data fetched successfully\n');
+  console.log('✅ Complete organization data fetched successfully');
+  console.log(`   📊 ${processedSeasons.length} seasons with fixtures in date range`);
+  console.log(`   📊 ${processedSeasons.reduce((acc, s) => acc + s.teams.length, 0)} teams total`);
+  console.log(`   📊 ${processedSeasons.reduce((acc, s) => acc + s.teams.reduce((a, t) => a + t.fixtures.length, 0), 0)} fixtures total\n`);
 
   return {
     seasons: processedSeasons,
     totalSeasons: processedSeasons.length,
-    totalTeams: processedSeasons.reduce((acc, s) => acc + s.teams.length, 0)
+    totalTeams: processedSeasons.reduce((acc, s) => acc + s.teams.length, 0),
+    totalFixtures: processedSeasons.reduce((acc, s) => acc + s.teams.reduce((a, t) => a + t.fixtures.length, 0), 0),
+    dateRange: {
+      from: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0],
+      to: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
+    }
   };
 }
 
@@ -167,6 +307,7 @@ module.exports = {
   fetchSeasons,
   fetchTeamsForSeason,
   fetchAllTeamsForSeason,
-  fetchFixtures,
+  fetchFixturesForTeam,
+  fetchAllFixtures,
   fetchCompleteOrgData
 };
