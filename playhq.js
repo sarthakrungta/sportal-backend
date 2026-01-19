@@ -28,8 +28,6 @@ function getLargestLogo(logoObject) {
  */
 async function makePlayHQRequest(endpoint, apiKey, tenant = 'ca') {
   try {
-    console.log('➡️ PlayHQ endpoint:', endpoint);
-
     const response = await fetch(endpoint, {
       headers: {
         'Accept': 'application/json',
@@ -44,19 +42,12 @@ async function makePlayHQRequest(endpoint, apiKey, tenant = 'ca') {
       throw new Error(`PlayHQ API error: ${response.status}`);
     }
 
-    const data = await response.json();
-
-    console.log('============== PLAYHQ JSON RESPONSE ==============');
-    console.dir(data, { depth: null });
-    console.log('============== END PLAYHQ RESPONSE ==============');
-
-    return data;
+    return await response.json();
   } catch (error) {
-    console.error('❌ PlayHQ request failed:', error);
+    console.error('PlayHQ request failed:', error.message);
     throw error;
   }
 }
-
 
 /**
  * Fetch all seasons for an organization
@@ -279,6 +270,11 @@ async function fetchCompleteOrgData(orgId, apiKey, tenant) {
       processedSeasons.push({
         seasonId: season.id,
         seasonName: season.name,
+        competitionName: season.competition?.name || null,
+        competitionId: season.competition?.id || null,
+        associationName: season.association?.name || null,
+        associationId: season.association?.id || null,
+        associationLogo: getLargestLogo(season.association?.logo),
         teams: processedTeams
       });
     } else {
