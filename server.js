@@ -344,7 +344,7 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     // Generate player cards HTML
     const playerCardsArray = playerList.map(player => `
       <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: ${secondaryColor}; font-size:${isAfl ? '2em' : '45px'}">${player}</h3>
+        <h3 style="margin: 0; color: ${textColor}; font-size:${isAfl ? '2em' : '45px'}">${player}</h3>
       </div>
     `);
 
