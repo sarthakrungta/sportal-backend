@@ -355,14 +355,14 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     const markupString = !isAfl ? `
 <div style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
   <div style="display: flex; flex-direction: column; width: 100%; margin-top: 50px; margin-left: 120px">
-    <h1 style="font-size: 6.5em; color: ${textColor || secondaryColor}; margin: 0 0 10px 0;">STARTING LINE UP</h1>
+    <h1 style="font-size: 6.5em; color: ${secondaryColor}; margin: 0 0 10px 0;">STARTING LINE UP</h1>
     
     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 40px;">
       <img src="${teamALogoUrl}" width="80" height="80" style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}" />
       <img src="${teamBLogoUrl}" width="80" height="80" style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}" />
       <div style="display: flex; flex-direction: column;">
-        <span style="color: ${textColor || secondaryColor}; font-size: 35px;">${shortenName(teamA, 15)} vs ${shortenName(teamB, 15)}</span>
-        <span style="color: ${secondaryColor}; font-size: 35px;">${shortenName(competitionName, 45)}</span>
+        <span style="color: ${secondaryColor}; font-size: 35px;">${shortenName(teamA, 15)} vs ${shortenName(teamB, 15)}</span>
+        <span style="color: ${textColor}; font-size: 35px;">${shortenName(competitionName, 45)}</span>
       </div>
     </div>
 
