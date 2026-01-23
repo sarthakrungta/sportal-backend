@@ -10,7 +10,7 @@ const sharp = require('sharp');
 
 // Import modules
 const { getOrgByEmail, updateOrgCache, isCacheFresh, logImageGeneration } = require('./database');
-const { fetchCompleteOrgData } = require('./playhq');
+const { fetchCompleteOrgData, fetchFixtureSummary } = require('./playhq');
 const { shortenName, isAflClub } = require('./image-generator');
 
 const app = express();
@@ -287,6 +287,187 @@ app.post('/generate-gameday-image', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate image', message: error.message });
   }
 });
+
+app.post('/generate-starting-xi-image', async (req, res) => {
+  const {
+    teamALogoUrl,
+    teamBLogoUrl,
+    competitionName,
+    teamA,
+    teamB,
+    gameFormat,
+    fixtureId,
+    userEmail
+  } = req.body;
+
+  try {
+    // Get organization design settings
+    const org = await getOrgByEmail(userEmail);
+
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    // Get design settings with defaults
+    const primaryColor = org.primary_color || '#1a1a1a';
+    const secondaryColor = org.secondary_color || '#FFD700';
+    const textColor = org.text_color || 'grey';
+
+    // Fetch fixture summary to get player list
+    const fixtureSummary = await fetchFixtureSummary(fixtureId, org.playhq_api_key, org.playhq_tenant);
+
+    if (!fixtureSummary) {
+      return res.status(404).json({ error: 'Fixture summary not found' });
+    }
+
+    // Extract player appearances for the home team (your team)
+    const homeTeam = fixtureSummary.teams?.find(t => t.isHomeTeam === true);
+    const playerAppearances = fixtureSummary.appearances?.filter(a => 
+      a.teamId === homeTeam?.id &&
+      a.visible !== false
+    ) || [];
+
+    // Format player names (firstName lastName)
+    const playerList = playerAppearances.map(p => 
+      `${p.firstName} ${p.lastName}`.trim()
+    );
+
+    console.log(`Found ${playerList.length} players for Starting XI`);
+
+    // Shorten team names
+    const maxLength = 23;
+    const shortTeamA = shortenName(teamA, maxLength);
+    const shortTeamB = shortenName(teamB, maxLength);
+
+    const isAfl = isAflClub(userEmail);
+
+    // Generate player cards HTML
+    const playerCardsArray = playerList.map(player => `
+      <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <h3 style="margin: 0; color: ${secondaryColor}; font-size:${isAfl ? '2em' : '45px'}">${player}</h3>
+      </div>
+    `);
+
+    const playerCardsLeft = playerCardsArray.slice(0, 12).join('');
+    const playerCardsRight = playerCardsArray.slice(12).join('');
+
+    // Generate HTML markup for AFL style
+    const markupString = !isAfl ? `
+<div style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
+  <div style="display: flex; flex-direction: column; width: 100%; margin-top: 50px; margin-left: 120px">
+    <h1 style="font-size: 6.5em; color: ${textColor || secondaryColor}; margin: 0 0 10px 0;">STARTING LINE UP</h1>
+    
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 40px;">
+      <img src="${teamALogoUrl}" width="80" height="80" style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}" />
+      <img src="${teamBLogoUrl}" width="80" height="80" style="height: 80px; width: 80px; border: 2px solid ${secondaryColor}" />
+      <div style="display: flex; flex-direction: column;">
+        <span style="color: ${textColor || secondaryColor}; font-size: 35px;">${shortenName(teamA, 15)} vs ${shortenName(teamB, 15)}</span>
+        <span style="color: ${secondaryColor}; font-size: 35px;">${shortenName(competitionName, 45)}</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 100px;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">${playerCardsLeft}</div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">${playerCardsRight}</div>
+    </div>
+  </div>
+
+  <div style="position: absolute; display: flex; bottom: 330px; right: -15px; width: 50px; height: 100px;">
+    <svg width="40" height="100"><polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/></svg>
+  </div>
+  <div style="position: absolute; display: flex; bottom: 190px; right: -15px; width: 50px; height: 100px;">
+    <svg width="40" height="100"><polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/></svg>
+  </div>
+  <div style="position: absolute; display: flex; bottom: 50px; right: -15px; width: 50px; height: 100px;">
+    <svg width="40" height="100"><polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}"/></svg>
+  </div>
+  <div style="position: absolute; display: flex; top: 0px; left: -20px; width: 120px; height: 50px;">
+    <svg width="120" height="40"><polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}"/></svg>
+  </div>
+  <div style="position: absolute; display: flex; top: 0px; left: 130px; width: 110px; height: 50px;">
+    <svg width="110" height="40"><polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}"/></svg>
+  </div>
+  <div style="position: absolute; display: flex; top: 0px; left: 270px; width: 110px; height: 50px;">
+    <svg width="110" height="40"><polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}"/></svg>
+  </div>
+</div>
+    ` : `
+<div style="position: relative; font-family: Roboto; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; padding: 40px;">
+  <div style="display: flex; width: 100%; height: 100%;">
+    <div style="width: 620px; display: flex; flex-direction: column; gap: 20px;">
+      <h1 style="font-size: 6.5em; color: ${textColor || secondaryColor}; font-family: Roboto; margin-top: 0;">STARTING XI</h1>
+      <div style="flex: 1; padding-top: 0; margin-top: -40px; display: flex; flex-direction: column;">
+        ${playerCardsArray.join('')}
+      </div>
+    </div>
+    
+    <div style="width: 580px; display: flex; flex-direction: column; gap: 20px;">
+      <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; padding: 30px; width: 520px; border-radius: 30px;">
+        <div style="display: flex; gap: 40px; margin-bottom: 20px;">
+          <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white;" />
+          <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white;" />
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <h2 style="margin: 0; font-size: 40px;">${shortTeamA}</h2>
+          <h2 style="margin: 0; font-size: 40px;">${shortTeamB}</h2>
+        </div>
+      </div>
+      
+      <div style="display: flex; gap: 20px;">
+        <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
+          <span style="color: ${primaryColor}; font-size: 24px;">${gameFormat}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    `;
+
+    const markup = await html(markupString);
+
+    const svg = await satori(
+        markup,
+        {
+            width: !isAfl ? 1000 : 1200,
+            height: 1200,
+            fonts: [
+                {
+                    name: 'Extenda',
+                    data: fontDataExtenda,
+                    weight: 400,
+                    style: 'normal',
+                },
+                {
+                    name: 'Roboto',
+                    data: fontDataRoboto,
+                    weight: 400,
+                    style: 'normal',
+                },
+                {
+                    name: 'Luckiest',
+                    data: fontDataLuckiest,
+                    weight: 400,
+                    style: 'normal',
+                }
+            ],
+        },
+    )
+
+    // Generate PNG image
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    // Log image generation
+    await logImageGeneration(userEmail, 'Gameday Template');
+
+    // Send image
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuffer);
+    
+  } catch (error) {
+    console.error('❌ Error generating Starting XI image:', error);
+    res.status(500).json({ error: 'Failed to generate image', message: error.message });
+  }
+});
+
 
 // ==================== ERROR HANDLING ====================
 

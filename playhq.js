@@ -128,24 +128,41 @@ async function fetchAllFixtures(teamId, apiKey, tenant) {
 }
 
 /**
+ * Fetch fixture summary (detailed fixture info including players)
+ */
+async function fetchFixtureSummary(fixtureId, apiKey, tenant) {
+  console.log(`Fetching fixture summary: ${fixtureId}`);
+  const endpoint = `${BASE_URL}/v2/games/${fixtureId}/summary`;
+  
+  try {
+    const response = await makePlayHQRequest(endpoint, apiKey, tenant);
+    return response.data || null;
+  } catch (error) {
+    console.warn(`Could not fetch fixture summary for ${fixtureId}:`, error.message);
+    return null;
+  }
+}
+
+/**
  * Check if a fixture date is within the acceptable range (1 year back, 1 year forward)
  */
 function isFixtureInDateRange(fixtureDate) {
   if (!fixtureDate) return false;
-  
+
   const fixture = new Date(fixtureDate);
   const now = new Date();
-  
-  // 1 year ago
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(now.getFullYear() - 1);
-  
-  // 1 year from now
-  const oneYearFromNow = new Date();
-  oneYearFromNow.setFullYear(now.getFullYear() + 1);
-  
-  return fixture >= oneYearAgo && fixture <= oneYearFromNow;
+
+  // 3 weeks ago
+  const threeWeeksAgo = new Date();
+  threeWeeksAgo.setDate(now.getDate() - 21);
+
+  // 3 weeks from now
+  const threeWeeksFromNow = new Date();
+  threeWeeksFromNow.setDate(now.getDate() + 21);
+
+  return fixture >= threeWeeksAgo && fixture <= threeWeeksFromNow;
 }
+
 
 /**
  * Fetch complete organization data (seasons → teams → fixtures)
@@ -305,5 +322,6 @@ module.exports = {
   fetchAllTeamsForSeason,
   fetchFixturesForTeam,
   fetchAllFixtures,
+  fetchFixtureSummary,
   fetchCompleteOrgData
 };
