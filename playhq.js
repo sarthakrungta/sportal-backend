@@ -49,12 +49,31 @@ async function makePlayHQRequest(endpoint, apiKey, tenant = 'ca') {
   }
 }
 
+
 /**
  * Fetch all seasons for an organization
  */
 async function fetchSeasons(organizationId, apiKey, tenant) {
   console.log(`Fetching seasons for organization: ${organizationId}`);
   const endpoint = `${BASE_URL}/v1/organisations/${organizationId}/seasons`;
+  return await makePlayHQRequest(endpoint, apiKey, tenant);
+}
+
+/**
+ * Fetch grades for a season
+ */
+async function fetchGradesForSeason(seasonId, apiKey, tenant) {
+  console.log(`Fetching grades for season: ${seasonId}`);
+  const endpoint = `${BASE_URL}/v1/seasons/${seasonId}/grades`;
+  return await makePlayHQRequest(endpoint, apiKey, tenant);
+}
+
+/**
+ * Fetch ladder for a grade
+ */
+async function fetchLadderForGrade(gradeId, apiKey, tenant) {
+  console.log(`Fetching ladder for grade: ${gradeId}`);
+  const endpoint = `${BASE_URL}/v2/grades/${gradeId}/ladder`;
   return await makePlayHQRequest(endpoint, apiKey, tenant);
 }
 
@@ -231,6 +250,7 @@ async function fetchCompleteOrgData(orgId, apiKey, tenant) {
             teamId: team.id,
             teamName: teamName,
             gradeName: team.grade?.name || null,
+            gradeId: team.grade?.id || null, // Capture Grade ID if available
             gradeUrl: team.grade?.url || null,
             clubName: team.club?.name || null,
             clubLogo: getLargestLogo(team.club?.logo),
@@ -341,5 +361,7 @@ module.exports = {
   fetchFixturesForTeam,
   fetchAllFixtures,
   fetchFixtureSummary,
-  fetchCompleteOrgData
+  fetchCompleteOrgData,
+  fetchGradesForSeason,
+  fetchLadderForGrade
 };

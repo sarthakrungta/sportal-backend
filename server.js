@@ -10,7 +10,7 @@ const sharp = require('sharp');
 
 // Import modules
 const { getOrgByEmail, updateOrgCache, isCacheFresh, logImageGeneration } = require('./database');
-const { fetchCompleteOrgData, fetchFixtureSummary } = require('./playhq');
+const { fetchCompleteOrgData, fetchFixtureSummary, fetchLadderForGrade, fetchGradesForSeason } = require('./playhq');
 const { shortenName, isAflClub } = require('./image-generator');
 
 const app = express();
@@ -487,6 +487,200 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate image', message: error.message });
   }
 });
+
+/**
+ * POST /generate-ladder-image
+ */
+app.post('/generate-ladder-image', async (req, res) => {
+  const { teamId, userEmail } = req.body;
+
+  if (!teamId || !userEmail) {
+    return res.status(400).json({ error: 'teamId and userEmail are required' });
+  }
+
+  try {
+    // 1. Get Org Data to find the team and grade info
+    const org = await getOrgByEmail(userEmail);
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+
+    // Use cached data if available, otherwise fetch
+    let orgData = org.cache_json;
+    if (!orgData) {
+      orgData = await fetchCompleteOrgData(org.playhq_org_id, org.playhq_api_key, org.playhq_tenant);
+      await updateOrgCache(org.org_id, orgData);
+    }
+
+    // 2. Find the team in the org data
+    let targetTeam = null;
+    let targetSeason = null;
+
+    // Search through seasons and teams
+    for (const season of (orgData.seasons || [])) {
+      const foundTeam = season.teams?.find(t => t.teamId === teamId);
+      if (foundTeam) {
+        targetTeam = foundTeam;
+        targetSeason = season;
+        break;
+      }
+    }
+
+    if (!targetTeam) {
+      return res.status(404).json({ error: 'Team not found in organization data' });
+    }
+
+    // 3. Resolve Grade ID
+    let gradeId = targetTeam.gradeId;
+    const gradeName = targetTeam.gradeName;
+
+    // If gradeId is missing, try to fetch grades for the season and match by name
+    if (!gradeId && targetSeason && gradeName) {
+      console.log(`Grade ID missing for ${gradeName}, fetching grades for season...`);
+      const gradesResponse = await fetchGradesForSeason(targetSeason.seasonId, org.playhq_api_key, org.playhq_tenant);
+      const grades = gradesResponse.data || [];
+      const matchedGrade = grades.find(g => g.name === gradeName);
+      if (matchedGrade) {
+        gradeId = matchedGrade.id;
+        console.log(`✓ Found grade ID: ${gradeId}`);
+      }
+    }
+
+    if (!gradeId) {
+      return res.status(404).json({ error: 'Could not resolve Grade ID' });
+    }
+
+    // 4. Fetch Ladder Data
+    const ladderResponse = await fetchLadderForGrade(gradeId, org.playhq_api_key, org.playhq_tenant);
+
+    // The API might return an object with `ladders` array or just the ladder data?
+    // User example response: { gradeId: "...", ladders: [...] }
+    const ladders = ladderResponse.ladders || [];
+
+    // We need to pick the right ladder if there are multiple (e.g. pools)
+    // For now, we'll try to find one that contains our team
+    let ladder = ladders.find(l =>
+      l.standings?.some(s => s.team?.id === teamId)
+    );
+
+    // If not found by ID (maybe ID mismatch?), try name? Or just take the first one?
+    if (!ladder && ladders.length > 0) {
+      ladder = ladders[0];
+    }
+
+    if (!ladder) {
+      return res.status(404).json({ error: 'No ladder data found for this grade' });
+    }
+
+    // 5. Prepare Data for Design
+    const primaryColor = org.primary_color || '#1a1a1a';
+    const secondaryColor = org.secondary_color || '#FFD700';
+    const textColor = org.text_color || 'grey';
+    const isAfl = isAflClub(userEmail);
+
+    const headers = ladder.headers || [];
+    const standings = ladder.standings || [];
+
+    // Limit rows to top 10 or fit the design
+    const topStandings = standings.slice(0, 12);
+
+    // Generate HTML
+    // We need a table-like layout.
+    // Headers: Pos, Team, P, W, L, PTS, % (if avail)
+    // We'll map the `values` array based on headers.
+
+    // Find indices for key columns
+    const idxPlayed = headers.findIndex(h => h.key === 'played');
+    const idxWon = headers.findIndex(h => h.key === 'won');
+    const idxLost = headers.findIndex(h => h.key === 'lost');
+    const idxPts = headers.findIndex(h => h.key === 'pointsTotal') !== -1
+      ? headers.findIndex(h => h.key === 'pointsTotal')
+      : headers.findIndex(h => h.key === 'pointsAverage'); // Fallback
+
+    // Create rows HTML
+    const rowsHtml = topStandings.map((standing, index) => {
+      const isMyTeam = standing.team?.id === teamId;
+      const teamName = shortenName(standing.team?.name || '', 20);
+      const played = idxPlayed !== -1 ? standing.values[idxPlayed] : '-';
+      const won = idxWon !== -1 ? standing.values[idxWon] : '-';
+      const lost = idxLost !== -1 ? standing.values[idxLost] : '-';
+      const pts = idxPts !== -1 ? standing.values[idxPts] : '-';
+
+      const rowBg = index % 2 === 0 ? `rgba(0, 0, 0, 0.1)` : `transparent`;
+      const rowColor = isMyTeam ? secondaryColor : textColor;
+
+      return `
+        <div style="display: flex; align-items: center; background-color: ${rowBg}; padding: 8px 15px; border-radius: 8px; margin-bottom: 4px; font-size: 30px; color: ${textColor}">
+           <div style="display: flex; width: 50px; font-weight: bold; color: ${secondaryColor}">${index + 1}</div>
+           <div style="display: flex; flex: 1; font-weight: bold; color: ${secondaryColor}">${teamName}</div>
+           <div style="display: flex; width: 60px; justify-content: center;">${played}</div>
+           <div style="display: flex; width: 60px; justify-content: center;">${won}</div>
+           <div style="display: flex; width: 60px; justify-content: center;">${lost}</div>
+           <div style="display: flex; width: 80px; justify-content: center; color: ${secondaryColor}">${pts}</div>
+        </div>
+      `;
+    }).join('');
+
+    const markupString = `
+    <div style="font-family: Roboto; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; padding: 50px; overflow: hidden; display: flex; flex-direction: column;">
+        
+        <!-- Header -->
+        <div style="display: flex; flex-direction: column; margin-bottom: 30px;">
+             <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h1 style="font-family: Luckiest; font-size: 6em; color: ${secondaryColor}; margin: 0;">LADDER</h1>
+                <img src="${targetTeam.clubLogo || ''}" style="height: 120px; width: 120px; object-fit: contain;" />
+             </div>
+             <h2 style="font-family: Luckiest; font-size: 2.5em; color: gray; margin: 0;">${targetTeam.gradeName}</h2>
+             <h3 style="font-family: Roboto; font-size: 1.5em; color: gray; margin: 0;">${targetSeason.seasonName}</h3>
+        </div>
+
+        <!-- Table Header -->
+        <div style="display: flex; padding: 10px 15px; border-bottom: 2px solid ${secondaryColor}; font-size: 28px; color: ${secondaryColor}; font-family: Luckiest; margin-bottom: 10px;">
+           <div style="display: flex; width: 50px;">#</div>
+           <div style="display: flex; flex: 1;">TEAM</div>
+           <div style="display: flex; width: 60px; justify-content: center;">P</div>
+           <div style="display: flex; width: 60px; justify-content: center;">W</div>
+           <div style="display: flex; width: 60px; justify-content: center;">L</div>
+           <div style="display: flex; width: 80px; justify-content: center;">PTS</div>
+        </div>
+
+        <!-- Rows -->
+        <div style="display: flex; flex-direction: column;">
+            ${rowsHtml}
+        </div>
+
+         <!-- Footer Decoration -->
+        <div style="display: flex; position: absolute; bottom: 0; right: 0; width: 150px; height: 150px;">
+            <svg width="150" height="150" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <polygon points="100,0 100,100 0,100" fill="${secondaryColor}" opacity="0.8" />
+            </svg>
+        </div>
+    </div>`;
+
+    const markup = await html(markupString);
+    const svg = await satori(
+      markup,
+      {
+        width: 1000,
+        height: 1200,
+        fonts: [
+          { name: 'Extenda', data: fontDataExtenda, weight: 400, style: 'normal' },
+          { name: 'Roboto', data: fontDataRoboto, weight: 400, style: 'normal' },
+          { name: 'Luckiest', data: fontDataLuckiest, weight: 400, style: 'normal' }
+        ],
+      },
+    );
+
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    await logImageGeneration(userEmail, 'Ladder Template');
+
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuffer);
+
+  } catch (error) {
+    console.error('❌ Error generating ladder image:', error);
+    res.status(500).json({ error: 'Failed to generate ladder image', message: error.message });
+  }
+});
+
 
 
 // ==================== ERROR HANDLING ====================
