@@ -12,14 +12,14 @@ function getLargestLogo(logoObject) {
   if (!logoObject || !logoObject.sizes || logoObject.sizes.length === 0) {
     return null;
   }
-  
+
   // Sort by width (descending) and return the URL of the largest
   const sortedLogos = logoObject.sizes.sort((a, b) => {
     const widthA = parseInt(a.dimensions?.width) || 0;
     const widthB = parseInt(b.dimensions?.width) || 0;
     return widthB - widthA;
   });
-  
+
   return sortedLogos[0]?.url || null;
 }
 
@@ -63,7 +63,7 @@ async function fetchSeasons(organizationId, apiKey, tenant) {
  */
 async function fetchTeamsForSeason(seasonId, apiKey, tenant, cursor = null) {
   console.log(`Fetching teams for season: ${seasonId}${cursor ? ` (cursor: ${cursor})` : ''}`);
-  
+
   const url = new URL(`${BASE_URL}/v1/seasons/${seasonId}/teams`);
   if (cursor) {
     url.searchParams.set('cursor', cursor);
@@ -82,7 +82,7 @@ async function fetchAllTeamsForSeason(seasonId, apiKey, tenant) {
   do {
     const response = await fetchTeamsForSeason(seasonId, apiKey, tenant, cursor);
     allTeams.push(...(response.data || []));
-    
+
     cursor = response.metadata?.hasMore ? response.metadata.nextCursor : null;
   } while (cursor);
 
@@ -95,7 +95,7 @@ async function fetchAllTeamsForSeason(seasonId, apiKey, tenant) {
  */
 async function fetchFixturesForTeam(teamId, apiKey, tenant, cursor = null) {
   console.log(`Fetching fixtures for team: ${teamId}${cursor ? ` (cursor: ${cursor})` : ''}`);
-  
+
   const url = new URL(`${BASE_URL}/v1/teams/${teamId}/fixture`);
   if (cursor) {
     url.searchParams.set('cursor', cursor);
@@ -119,7 +119,7 @@ async function fetchAllFixtures(teamId, apiKey, tenant) {
   do {
     const response = await fetchFixturesForTeam(teamId, apiKey, tenant, cursor);
     allFixtures.push(...(response.data || []));
-    
+
     cursor = response.metadata?.hasMore ? response.metadata.nextCursor : null;
   } while (cursor);
 
@@ -133,7 +133,7 @@ async function fetchAllFixtures(teamId, apiKey, tenant) {
 async function fetchFixtureSummary(fixtureId, apiKey, tenant) {
   console.log(`Fetching fixture summary: ${fixtureId}`);
   const endpoint = `${BASE_URL}/v2/games/${fixtureId}/summary`;
-  
+
   try {
     const response = await makePlayHQRequest(endpoint, apiKey, tenant);
     return response.data || null;
@@ -169,7 +169,7 @@ function isFixtureInDateRange(fixtureDate) {
  */
 async function fetchCompleteOrgData(orgId, apiKey, tenant) {
   console.log('🔄 Fetching complete organization data from PlayHQ...');
-  
+
   // 1. Fetch all seasons
   const seasonsResponse = await fetchSeasons(orgId, apiKey, tenant);
   const seasons = seasonsResponse.data || [];
@@ -194,93 +194,111 @@ async function fetchCompleteOrgData(orgId, apiKey, tenant) {
     });
 
     // Filter teams belonging to this organization (using club.id)
-    const orgTeams = allTeams.filter(team => 
+    const orgTeams = allTeams.filter(team =>
       team.club?.id === orgId
     );
 
     console.log(`   → ${orgTeams.length} teams belong to your organization (club ID: ${orgId})`);
 
-    // 3. Process each team
+    // 3. Process each team - BATCHED PARALLEL FETCHING
+    // Fetching all at once causes 429 Too Many Requests, so we batch them.
+    const BATCH_SIZE = 2;
     const processedTeams = [];
 
-    for (const team of orgTeams) {
-      const teamName = team.grade?.name || 'Unknown Team';
-      console.log(`   🏆 Processing team: ${teamName}`);
+    for (let i = 0; i < orgTeams.length; i += BATCH_SIZE) {
+      const batch = orgTeams.slice(i, i + BATCH_SIZE);
+      console.log(`   Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(orgTeams.length / BATCH_SIZE)} (${batch.length} teams)`);
 
-      // Fetch all fixtures for this team
-      const allFixtures = await fetchAllFixtures(team.id, apiKey, tenant);
-      
-      // Filter fixtures to only include those within date range (1 year back/forward)
-      const filteredFixtures = allFixtures.filter(f => 
-        isFixtureInDateRange(f.schedule?.date)
-      );
-      
-      console.log(`      → Filtered ${filteredFixtures.length}/${allFixtures.length} fixtures (within date range)`);
+      const batchPromises = batch.map(async (team) => {
+        const teamName = team.grade?.name || 'Unknown Team';
+        // console.log(`   🏆 Processing team: ${teamName}`); // Reduced logging for concurrency
 
-      // Only include team if it has fixtures in the date range
-      if (filteredFixtures.length === 0) {
-        console.log(`      → Skipping team (no fixtures in date range)`);
-        continue;
-      }
+        try {
+          // Fetch all fixtures for this team
+          const allFixtures = await fetchAllFixtures(team.id, apiKey, tenant);
 
-      processedTeams.push({
-        teamId: team.id,
-        teamName: teamName,
-        gradeName: team.grade?.name || null,
-        gradeUrl: team.grade?.url || null,
-        clubName: team.club?.name || null,
-        clubLogo: getLargestLogo(team.club?.logo),
-        fixtures: filteredFixtures.map(f => {
-          // Extract home and away teams from competitors
-          const homeTeam = f.competitors?.find(c => c.isHomeTeam === true);
-          const awayTeam = f.competitors?.find(c => c.isHomeTeam === false);
-          
-          // Look up team logos from the map we created
-          const homeTeamLogo = homeTeam?.id ? teamLogoMap[homeTeam.id] : null;
-          const awayTeamLogo = awayTeam?.id ? teamLogoMap[awayTeam.id] : null;
-          
+          // Filter fixtures to only include those within date range (1 year back/forward)
+          const filteredFixtures = allFixtures.filter(f =>
+            isFixtureInDateRange(f.schedule?.date)
+          );
+
+          // Only include team if it has fixtures in the date range
+          if (filteredFixtures.length === 0) {
+            return null; // Signals to filter this out later
+          }
+
           return {
-            fixtureId: f.id,
-            status: f.status, // UPCOMING, COMPLETED, etc.
-            url: f.url,
-            
-            // Round info
-            roundName: f.round?.name || null,
-            roundAbbr: f.round?.abbreviatedName || null,
-            isFinalRound: f.round?.isFinalRound || false,
-            
-            // Grade info
-            gradeName: f.grade?.name || null,
-            gradeUrl: f.grade?.url || null,
-            
-            // Schedule
-            date: f.schedule?.date || null,
-            time: f.schedule?.time || null,
-            timezone: f.schedule?.timezone || null,
-            
-            // Teams
-            homeTeam: homeTeam?.name || null,
-            homeTeamId: homeTeam?.id || null,
-            homeTeamScore: homeTeam?.scoreTotal || null,
-            homeTeamOutcome: homeTeam?.outcome || null,
-            homeTeamLogo: homeTeamLogo,
-            
-            awayTeam: awayTeam?.name || null,
-            awayTeamId: awayTeam?.id || null,
-            awayTeamScore: awayTeam?.scoreTotal || null,
-            awayTeamOutcome: awayTeam?.outcome || null,
-            awayTeamLogo: awayTeamLogo,
-            
-            // Venue
-            venueName: f.venue?.name || null,
-            venueSurface: f.venue?.surfaceName || null,
-            venueAddress: f.venue?.address ? 
-              `${f.venue.address.line1}, ${f.venue.address.suburb}, ${f.venue.address.state} ${f.venue.address.postcode}` 
-              : null,
+            teamId: team.id,
+            teamName: teamName,
+            gradeName: team.grade?.name || null,
+            gradeUrl: team.grade?.url || null,
+            clubName: team.club?.name || null,
+            clubLogo: getLargestLogo(team.club?.logo),
+            fixtures: filteredFixtures.map(f => {
+              // Extract home and away teams from competitors
+              const homeTeam = f.competitors?.find(c => c.isHomeTeam === true);
+              const awayTeam = f.competitors?.find(c => c.isHomeTeam === false);
+
+              // Look up team logos from the map we created
+              const homeTeamLogo = homeTeam?.id ? teamLogoMap[homeTeam.id] : null;
+              const awayTeamLogo = awayTeam?.id ? teamLogoMap[awayTeam.id] : null;
+
+              return {
+                fixtureId: f.id,
+                status: f.status, // UPCOMING, COMPLETED, etc.
+                url: f.url,
+
+                // Round info
+                roundName: f.round?.name || null,
+                roundAbbr: f.round?.abbreviatedName || null,
+                isFinalRound: f.round?.isFinalRound || false,
+
+                // Grade info
+                gradeName: f.grade?.name || null,
+                gradeUrl: f.grade?.url || null,
+
+                // Schedule
+                date: f.schedule?.date || null,
+                time: f.schedule?.time || null,
+                timezone: f.schedule?.timezone || null,
+
+                // Teams
+                homeTeam: homeTeam?.name || null,
+                homeTeamId: homeTeam?.id || null,
+                homeTeamScore: homeTeam?.scoreTotal || null,
+                homeTeamOutcome: homeTeam?.outcome || null,
+                homeTeamLogo: homeTeamLogo,
+
+                awayTeam: awayTeam?.name || null,
+                awayTeamId: awayTeam?.id || null,
+                awayTeamScore: awayTeam?.scoreTotal || null,
+                awayTeamOutcome: awayTeam?.outcome || null,
+                awayTeamLogo: awayTeamLogo,
+
+                // Venue
+                venueName: f.venue?.name || null,
+                venueSurface: f.venue?.surfaceName || null,
+                venueAddress: f.venue?.address ?
+                  `${f.venue.address.line1}, ${f.venue.address.suburb}, ${f.venue.address.state} ${f.venue.address.postcode}`
+                  : null,
+              };
+            })
           };
-        })
+        } catch (err) {
+          console.error(`Error processing team ${team.id}:`, err);
+          return null; // Skip this team on error, don't crash whole batch
+        }
       });
+
+      // Wait for the current batch to finish before starting the next one
+      const batchResults = await Promise.all(batchPromises);
+      processedTeams.push(...batchResults.filter(t => t !== null));
+
+      // Optional: Small delay to be nice to the API
+      // await new Promise(r => setTimeout(r, 200)); 
     }
+
+    console.log(`\n   ✅ Finished processing season: ${season.name}. Found ${processedTeams.length} valid teams.`);
 
     // Only include season if it has teams with fixtures
     if (processedTeams.length > 0) {

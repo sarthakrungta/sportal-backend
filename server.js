@@ -39,10 +39,10 @@ const fontDataLuckiest = readFileSync(resolve(__dirname, './fonts/LuckiestGuy-Re
  * Health check endpoint
  */
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV
   });
 });
 
@@ -68,23 +68,43 @@ app.get('/api/org-data', async (req, res) => {
 
     console.log(`✓ Found organization: ${org.org_name}`);
 
-    // Check if cache is fresh
-    const cacheHours = parseInt(process.env.CACHE_DURATION_HOURS) || 6;
-    
-    if (org.cache_json && isCacheFresh(org.cache_updated_at, cacheHours)) {
-      console.log('✓ Returning cached data');
-      return res.json({
+    // Check if cache exists (regardless of freshness)
+    if (org.cache_json) {
+      console.log('✓ Returning cached data (SWR Strategy)');
+
+      // Send response IMMEDIATELY
+      res.json({
         ...org.cache_json,
         source: 'cache',
-        lastUpdated: org.cache_updated_at
+        lastUpdated: org.cache_updated_at,
+        isStale: !isCacheFresh(org.cache_updated_at, parseInt(process.env.CACHE_DURATION_HOURS) || 6)
       });
+
+      // Background revalidation: If cache is stale, fetch fresh data asynchronously
+      if (!isCacheFresh(org.cache_updated_at, parseInt(process.env.CACHE_DURATION_HOURS) || 6)) {
+        console.log('⟳ Cache is stale - Triggering background refresh...');
+
+        // This runs in background, response is already sent
+        fetchCompleteOrgData(
+          org.playhq_org_id,
+          org.playhq_api_key,
+          org.playhq_tenant
+        ).then(async (freshData) => {
+          await updateOrgCache(org.org_id, freshData);
+          console.log(`✓ Background refresh complete for ${org.org_name}`);
+        }).catch(err => {
+          console.error(`❌ Background refresh failed for ${org.org_name}:`, err.message);
+        });
+      }
+
+      return; // End request here
     }
 
-    // Fetch fresh data from PlayHQ
-    console.log('⟳ Cache is stale - fetching from PlayHQ...');
+    // No cache exists at all - must wait for fetch
+    console.log('⟳ No cache found - fetching from PlayHQ...');
     const orgData = await fetchCompleteOrgData(
-      org.playhq_org_id, 
-      org.playhq_api_key, 
+      org.playhq_org_id,
+      org.playhq_api_key,
       org.playhq_tenant
     );
 
@@ -101,9 +121,9 @@ app.get('/api/org-data', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in /api/org-data:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch organization data',
-      message: error.message 
+      message: error.message
     });
   }
 });
@@ -172,11 +192,11 @@ app.post('/generate-gameday-image', async (req, res) => {
         <img src="${teamALogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         <img src="${teamBLogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         ${!isAfl ?
-            `<div style="display: flex; align-items: center; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
+        `<div style="display: flex; align-items: center; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
                 ${gameFormat}
             </div>`
-            : ''
-        }
+        : ''
+      }
     </div>
 
     <div style="color: ${secondaryColor}; display: flex; flex-direction: column; margin-top: 30px">
@@ -243,38 +263,38 @@ app.post('/generate-gameday-image', async (req, res) => {
 
     // Generate PNG image
 
-    
-        const markup = await html(markupString);
 
-        const svg = await satori(
-            markup,
-            {
-                width: 1000,
-                height: 1200,
-                fonts: [
-                    {
-                        name: 'Extenda',
-                        data: fontDataExtenda,
-                        weight: 400,
-                        style: 'normal',
-                    },
-                    {
-                        name: 'Roboto',
-                        data: fontDataRoboto,
-                        weight: 400,
-                        style: 'normal',
-                    },
-                    {
-                        name: 'Luckiest',
-                        data: fontDataLuckiest,
-                        weight: 400,
-                        style: 'normal',
-                    }
-                ],
-            },
-        );
+    const markup = await html(markupString);
 
-        const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    const svg = await satori(
+      markup,
+      {
+        width: 1000,
+        height: 1200,
+        fonts: [
+          {
+            name: 'Extenda',
+            data: fontDataExtenda,
+            weight: 400,
+            style: 'normal',
+          },
+          {
+            name: 'Roboto',
+            data: fontDataRoboto,
+            weight: 400,
+            style: 'normal',
+          },
+          {
+            name: 'Luckiest',
+            data: fontDataLuckiest,
+            weight: 400,
+            style: 'normal',
+          }
+        ],
+      },
+    );
+
+    const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
     // Log image generation
     await logImageGeneration(userEmail, 'Gameday Template');
 
@@ -322,13 +342,13 @@ app.post('/generate-starting-xi-image', async (req, res) => {
 
     // Extract player appearances for the home team (your team)
     const homeTeam = fixtureSummary.teams?.find(t => t.isHomeTeam === true);
-    const playerAppearances = fixtureSummary.appearances?.filter(a => 
+    const playerAppearances = fixtureSummary.appearances?.filter(a =>
       a.teamId === homeTeam?.id &&
       a.visible !== false
     ) || [];
 
     // Format player names (firstName lastName)
-    const playerList = playerAppearances.map(p => 
+    const playerList = playerAppearances.map(p =>
       `${p.firstName} ${p.lastName}`.trim()
     );
 
@@ -426,31 +446,31 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     const markup = await html(markupString);
 
     const svg = await satori(
-        markup,
-        {
-            width: !isAfl ? 1000 : 1200,
-            height: 1200,
-            fonts: [
-                {
-                    name: 'Extenda',
-                    data: fontDataExtenda,
-                    weight: 400,
-                    style: 'normal',
-                },
-                {
-                    name: 'Roboto',
-                    data: fontDataRoboto,
-                    weight: 400,
-                    style: 'normal',
-                },
-                {
-                    name: 'Luckiest',
-                    data: fontDataLuckiest,
-                    weight: 400,
-                    style: 'normal',
-                }
-            ],
-        },
+      markup,
+      {
+        width: !isAfl ? 1000 : 1200,
+        height: 1200,
+        fonts: [
+          {
+            name: 'Extenda',
+            data: fontDataExtenda,
+            weight: 400,
+            style: 'normal',
+          },
+          {
+            name: 'Roboto',
+            data: fontDataRoboto,
+            weight: 400,
+            style: 'normal',
+          },
+          {
+            name: 'Luckiest',
+            data: fontDataLuckiest,
+            weight: 400,
+            style: 'normal',
+          }
+        ],
+      },
     )
 
     // Generate PNG image
@@ -461,7 +481,7 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     // Send image
     res.setHeader('Content-Type', 'image/png');
     res.send(pngBuffer);
-    
+
   } catch (error) {
     console.error('❌ Error generating Starting XI image:', error);
     res.status(500).json({ error: 'Failed to generate image', message: error.message });
