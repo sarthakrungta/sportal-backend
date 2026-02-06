@@ -591,9 +591,9 @@ app.post('/generate-ladder-image', async (req, res) => {
     const idxPlayed = headers.findIndex(h => h.key === 'played');
     const idxWon = headers.findIndex(h => h.key === 'won');
     const idxLost = headers.findIndex(h => h.key === 'lost');
-    const idxPts = headers.findIndex(h => h.key === 'pointsTotal') !== -1
-      ? headers.findIndex(h => h.key === 'pointsTotal')
-      : headers.findIndex(h => h.key === 'pointsAverage'); // Fallback
+    const idxPts = headers.findIndex(h => h.key === 'competitionPoints') !== -1
+      ? headers.findIndex(h => h.key === 'competitionPoints')
+      : headers.findIndex(h => h.key === 'pointsTotal'); // Fallback
 
     // Create rows HTML
     const rowsHtml = topStandings.map((standing, index) => {
