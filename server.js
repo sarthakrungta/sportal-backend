@@ -317,7 +317,8 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     teamB,
     gameFormat,
     fixtureId,
-    userEmail
+    userEmail,
+    teamId,
   } = req.body;
 
   try {
@@ -340,10 +341,9 @@ app.post('/generate-starting-xi-image', async (req, res) => {
       return res.status(404).json({ error: 'Fixture summary not found' });
     }
 
-    // Extract player appearances for the home team (your team)
-    const homeTeam = fixtureSummary.teams?.find(t => t.isHomeTeam === true);
+    // Extract player appearances for your team
     const playerAppearances = fixtureSummary.appearances?.filter(a =>
-      a.teamId === homeTeam?.id &&
+      a.teamId === teamId &&
       a.visible !== false
     ) || [];
 
@@ -353,6 +353,14 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     );
 
     console.log(`Found ${playerList.length} players for Starting XI`);
+
+    if (playerList.length === 0) {
+      return res.status(422).json({
+        errorCode: 'NO_PLAYERS_FOUND',
+        message:
+          'No players found for this fixture. The team may not have published a lineup yet.',
+      });
+    }
 
     // Shorten team names
     const maxLength = 23;
