@@ -163,7 +163,7 @@ async function fetchFixtureSummary(fixtureId, apiKey, tenant) {
 }
 
 /**
- * Check if a fixture date is within the acceptable range (1 year back, 1 year forward)
+ * Check if a fixture date is within the acceptable range (now → next 3 weeks)
  */
 function isFixtureInDateRange(fixtureDate) {
   if (!fixtureDate) return false;
@@ -171,17 +171,12 @@ function isFixtureInDateRange(fixtureDate) {
   const fixture = new Date(fixtureDate);
   const now = new Date();
 
-  // 3 weeks ago
-  const threeWeeksAgo = new Date();
-  threeWeeksAgo.setDate(now.getDate() - 21);
-
   // 3 weeks from now
   const threeWeeksFromNow = new Date();
   threeWeeksFromNow.setDate(now.getDate() + 21);
 
-  return fixture >= threeWeeksAgo && fixture <= threeWeeksFromNow;
+  return fixture >= now && fixture <= threeWeeksFromNow;
 }
-
 
 /**
  * Fetch complete organization data (seasons → teams → fixtures)
