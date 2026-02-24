@@ -11,7 +11,7 @@ const sharp = require('sharp');
 // Import modules
 const { getOrgByEmail, updateOrgCache, isCacheFresh, logImageGeneration } = require('./database');
 const { fetchCompleteOrgData, fetchFixtureSummary, fetchLadderForGrade, fetchGradesForSeason } = require('./playhq');
-const { shortenName, isAflClub } = require('./image-generator');
+const { shortenName } = require('./image-generator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -170,7 +170,6 @@ app.post('/generate-gameday-image', async (req, res) => {
     const gameVenueParts = gameVenue.split('/');
     const shortGameVenue = gameVenueParts[0].trim();
 
-    const isAfl = isAflClub(userEmail);
 
     // Generate HTML markup
     const markupString = `
@@ -185,18 +184,15 @@ app.post('/generate-gameday-image', async (req, res) => {
         : ''}
     <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
         <h1 style="margin-bottom: 0px; font-size: 6.5em;">GAMEDAY</h1>
-        <h4 style="color: grey; margin-top: 0; font-size: 50">${isAfl ? '' : competitionName}</h4>
+        <h4 style="color: grey; margin-top: 0; font-size: 50">${competitionName}</h4>
     </div>
 
     <div style="display: flex; margin-top: 40px;">
         <img src="${teamALogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
         <img src="${teamBLogoUrl}" style="width: 190px; border: 4px solid white; margin-right: 10px" />
-        ${!isAfl ?
-        `<div style="display: flex; align-items: center; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
+        <div style="display: flex; align-items: center; background-color: rgba(255, 255, 255, 0.2); border-radius: 40px; padding: 2px 12px; font-size: 24px; color: white; margin-top: 120px">
                 ${gameFormat}
-            </div>`
-        : ''
-      }
+            </div>
     </div>
 
     <div style="color: ${secondaryColor}; display: flex; flex-direction: column; margin-top: 30px">
@@ -362,25 +358,19 @@ app.post('/generate-starting-xi-image', async (req, res) => {
       });
     }
 
-    // Shorten team names
-    const maxLength = 23;
-    const shortTeamA = shortenName(teamA, maxLength);
-    const shortTeamB = shortenName(teamB, maxLength);
-
-    const isAfl = isAflClub(userEmail);
-
     // Generate player cards HTML
     const playerCardsArray = playerList.map(player => `
       <div style="padding: 4px; display: flex; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        <h3 style="margin: 0; color: ${textColor}; font-size:${isAfl ? '2em' : '45px'}">${player}</h3>
+        <h3 style="margin: 0; color: ${textColor}; font-size:45px">${player}</h3>
       </div>
     `);
 
+    //In case more than 12 listed players, split them into two columns
     const playerCardsLeft = playerCardsArray.slice(0, 12).join('');
     const playerCardsRight = playerCardsArray.slice(12).join('');
 
     // Generate HTML markup for AFL style
-    const markupString = !isAfl ? `
+    const markupString = `
 <div style="position: relative; font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; overflow: hidden; display: flex; justify-content: center; padding: 40px 20px;">
   <div style="display: flex; flex-direction: column; width: 100%; margin-top: 50px; margin-left: 120px">
     <h1 style="font-size: 6.5em; color: ${secondaryColor}; margin: 0 0 10px 0;">STARTING LINE UP</h1>
@@ -419,36 +409,6 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     <svg width="110" height="40"><polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}"/></svg>
   </div>
 </div>
-    ` : `
-<div style="position: relative; font-family: Roboto; height: 1200px; width: 1200px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${secondaryColor}; overflow: hidden; display: flex; padding: 40px;">
-  <div style="display: flex; width: 100%; height: 100%;">
-    <div style="width: 620px; display: flex; flex-direction: column; gap: 20px;">
-      <h1 style="font-size: 6.5em; color: ${textColor || secondaryColor}; font-family: Roboto; margin-top: 0;">STARTING XI</h1>
-      <div style="flex: 1; padding-top: 0; margin-top: -40px; display: flex; flex-direction: column;">
-        ${playerCardsArray.join('')}
-      </div>
-    </div>
-    
-    <div style="width: 580px; display: flex; flex-direction: column; gap: 20px;">
-      <div style="background-color: rgba(255, 255, 255, 0.1); color: ${primaryColor}; display: flex; flex-direction: column; padding: 30px; width: 520px; border-radius: 30px;">
-        <div style="display: flex; gap: 40px; margin-bottom: 20px;">
-          <img src="${teamALogoUrl}" style="width: 160px; border: 4px solid white;" />
-          <img src="${teamBLogoUrl}" style="width: 160px; border: 4px solid white;" />
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          <h2 style="margin: 0; font-size: 40px;">${shortTeamA}</h2>
-          <h2 style="margin: 0; font-size: 40px;">${shortTeamB}</h2>
-        </div>
-      </div>
-      
-      <div style="display: flex; gap: 20px;">
-        <div style="background-color: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 20px; width: 250px; display: flex; align-items: center; justify-content: center;">
-          <span style="color: ${primaryColor}; font-size: 24px;">${gameFormat}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
     `;
 
     const markup = await html(markupString);
@@ -456,7 +416,7 @@ app.post('/generate-starting-xi-image', async (req, res) => {
     const svg = await satori(
       markup,
       {
-        width: !isAfl ? 1000 : 1200,
+        width: 1000,
         height: 1200,
         fonts: [
           {
@@ -582,7 +542,6 @@ app.post('/generate-ladder-image', async (req, res) => {
     const primaryColor = org.primary_color || '#1a1a1a';
     const secondaryColor = org.secondary_color || '#FFD700';
     const textColor = org.text_color || 'grey';
-    const isAfl = isAflClub(userEmail);
 
     const headers = ladder.headers || [];
     const standings = ladder.standings || [];
@@ -612,55 +571,101 @@ app.post('/generate-ladder-image', async (req, res) => {
       const lost = idxLost !== -1 ? standing.values[idxLost] : '-';
       const pts = idxPts !== -1 ? standing.values[idxPts] : '-';
 
-      const rowBg = index % 2 === 0 ? `rgba(0, 0, 0, 0.1)` : `transparent`;
-      const rowColor = isMyTeam ? secondaryColor : textColor;
+      const rowColor = isMyTeam ? textColor : secondaryColor;
 
       return `
-        <div style="display: flex; align-items: center; background-color: ${rowBg}; padding: 8px 15px; border-radius: 8px; margin-bottom: 4px; font-size: 30px; color: ${textColor}">
-           <div style="display: flex; width: 50px; font-weight: bold; color: ${secondaryColor}">${index + 1}</div>
-           <div style="display: flex; flex: 1; font-weight: bold; color: ${secondaryColor}">${teamName}</div>
-           <div style="display: flex; width: 60px; justify-content: center;">${played}</div>
+        <div style="display: flex; align-items: center; padding: 18px 15px; font-size: 33px; color: ${rowColor}">
+           <div style="display: flex; width: 50px; font-weight: bold;">${index + 1}</div>
+           <div style="display: flex; flex: 1; font-weight: bold;">${teamName}</div>
            <div style="display: flex; width: 60px; justify-content: center;">${won}</div>
            <div style="display: flex; width: 60px; justify-content: center;">${lost}</div>
-           <div style="display: flex; width: 80px; justify-content: center; color: ${secondaryColor}">${pts}</div>
+           <div style="display: flex; width: 80px; justify-content: center;">${pts}</div>
         </div>
       `;
     }).join('');
 
     const markupString = `
-    <div style="font-family: Roboto; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; padding: 50px; overflow: hidden; display: flex; flex-direction: column;">
-        
+    <div style="font-family: Luckiest; height: 1200px; width: 1000px; background: url('https://sportal-images.s3.ap-southeast-2.amazonaws.com/square_pattern.png'); background-repeat: no-repeat; background-color: ${primaryColor}; padding-left:100px; padding-top: 120px; overflow: hidden; position: relative; display: flex; flex-direction: column">
+        <div style="display: flex; flex-direction: column">
+            <img src="${targetTeam.clubLogo || ''}" style="width: 140px; position: absolute; top: -100px; right: 20px;" />
+        </div>
         <!-- Header -->
-        <div style="display: flex; flex-direction: column; margin-bottom: 30px;">
-             <div style="display: flex; align-items: center; justify-content: space-between;">
-                <h1 style="font-family: Luckiest; font-size: 6em; color: ${secondaryColor}; margin: 0;">LADDER</h1>
-                <img src="${targetTeam.clubLogo || ''}" style="height: 120px; width: 120px; object-fit: contain;" />
-             </div>
-             <h2 style="font-family: Luckiest; font-size: 2.5em; color: gray; margin: 0;">${targetTeam.gradeName}</h2>
-             <h3 style="font-family: Roboto; font-size: 1.5em; color: gray; margin: 0;">${targetSeason.seasonName}</h3>
+        <div style="color: ${secondaryColor}; display: flex; flex-direction: column">
+            <h1 style="margin-bottom: 0px; font-size: 6.5em;">STANDINGS</h1>
+            <h4 style="color: grey; margin-top: 0; font-size: 50">${targetTeam.gradeName}</h4>
         </div>
 
-        <!-- Table Header -->
-        <div style="display: flex; padding: 10px 15px; border-bottom: 2px solid ${secondaryColor}; font-size: 28px; color: ${secondaryColor}; font-family: Luckiest; margin-bottom: 10px;">
-           <div style="display: flex; width: 50px;">#</div>
-           <div style="display: flex; flex: 1;">TEAM</div>
-           <div style="display: flex; width: 60px; justify-content: center;">P</div>
-           <div style="display: flex; width: 60px; justify-content: center;">W</div>
-           <div style="display: flex; width: 60px; justify-content: center;">L</div>
-           <div style="display: flex; width: 80px; justify-content: center;">PTS</div>
-        </div>
+        <!-- Table -->
+        <div style="display: flex; flex-direction: column; border: 2px solid ${textColor}; width: 800px; overflow: hidden;">
+            <!-- Table Header -->
+            <div style="display: flex; padding: 18px 15px; background-color: ${secondaryColor}80; font-size: 35px; color: ${secondaryColor}; font-family: Luckiest; border-bottom: 2px solid ${textColor};">
+               <div style="display: flex; width: 50px;">#</div>
+               <div style="display: flex; flex: 1;">TEAM</div>
+               <div style="display: flex; width: 60px; justify-content: center;">W</div>
+               <div style="display: flex; width: 60px; justify-content: center;">L</div>
+               <div style="display: flex; width: 80px; justify-content: center;">PTS</div>
+            </div>
 
-        <!-- Rows -->
-        <div style="display: flex; flex-direction: column;">
-            ${rowsHtml}
+            <!-- Rows -->
+            <div style="display: flex; flex-direction: column;">
+                ${rowsHtml}
+            </div>
         </div>
 
          <!-- Footer Decoration -->
-        <div style="display: flex; position: absolute; bottom: 0; right: 0; width: 150px; height: 150px;">
-            <svg width="150" height="150" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <polygon points="100,0 100,100 0,100" fill="${secondaryColor}" opacity="0.8" />
-            </svg>
-        </div>
+    <div style="display: flex; position: absolute; bottom: 330px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; bottom: 190px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; bottom: 50px; right: -15px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: -20px; width: 120px; height: 50px;">
+        <svg width="120" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 120,0 100,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: 130px; width: 110px; height: 50px;">
+        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: 270px; width: 110px; height: 50px;">
+        <svg width="110" height="40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,0 110,0 90,40 0,40" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 0px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 140px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
+
+    <div style="display: flex; position: absolute; top: 280px; left: 0px; width: 50px; height: 100px;">
+        <svg width="40" height="100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,0 40,80 0,100 0,20" fill="${secondaryColor}" />
+        </svg>
+    </div>
     </div>`;
 
     const markup = await html(markupString);
